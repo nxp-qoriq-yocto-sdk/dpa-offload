@@ -34,17 +34,19 @@ LIBNAME = libdpa-offload.a
 LIBS += $(LIBNAME)
 
 # The sub-component objects
-OBJS = dpa_classifier.o
+OBJS = dpa_classifier.o \
+	dpa_stats.o
 
 ABS_OBJS := $(foreach obj,$(OBJS),$(addprefix $(SRC_SUBDIR)/,$(obj)))
 OBJECTS += $(ABS_OBJS)
 
 # Library interface (files to install)
 ABS_INTERFACE += include/fsl_dpa_offload.h \
-	include/fsl_dpa_classifier.h
+	include/fsl_dpa_classifier.h \
+	include/fsl_dpa_stats.h
 
 # Specific build flags for this sub-component
-BUILDFLAGS += $(USDPAA_CFLAGS)
+BUILDFLAGS += -Ilib/fifo_queue $(USDPAA_CFLAGS)
 
 # Library dependencies (rule)
 $(OUTDIR)/$(LIBNAME): $(ABS_OBJS)
