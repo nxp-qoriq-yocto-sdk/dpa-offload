@@ -63,7 +63,7 @@ INCDESTSUBDIR = /usr/include/dpa-offload
 DESTDIR ?= $(shell pwd)/install
 
 # Further subdirectories to search for Makefiles
-SUBDIRS = src
+SUBDIRS = src lib
 
 # add_dep_recipe
 #
