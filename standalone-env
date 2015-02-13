@@ -1,0 +1,133 @@
+# Copyright (c) 2015 Freescale Semiconductor, Inc.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#     * Redistributions of source code must retain the above copyright
+#	notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#	notice, this list of conditions and the following disclaimer in the
+#	documentation and/or other materials provided with the distribution.
+#     * Neither the name of Freescale Semiconductor nor the
+#	names of its contributors may be used to endorse or promote products
+#	derived from this software without specific prior written permission.
+#
+#
+# ALTERNATIVELY, this software may be distributed under the terms of the
+# GNU General Public License ("GPL") as published by the Free Software
+# Foundation, either version 2 of that License or (at your option) any
+# later version.
+#
+# THIS SOFTWARE IS PROVIDED BY Freescale Semiconductor ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL Freescale Semiconductor BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# SDK_ROOT points to the root of where you cloned SDK super-git. Even if the
+# name of this file suggests otherwise, parts of SDK build are still needed
+# to sucessfully build USDPAA.
+if [[ -z ${SDK_ROOT} ]]
+then
+	export SDK_ROOT="$PWD/../fsl-qoriq-sdk"
+fi
+
+board2soc()
+{
+       case $1 in
+               [pP]1023*) echo p1023;;
+               [pP]2041*) echo p2041;;
+               [pP]3041*) echo p3041;;
+               [pP]4080*) echo p4080;;
+               [pP]5020*) echo p5020;;
+               [pP]5040*) echo p5040;;
+               [bB]4860*) echo b4860;;
+               [tT]4240*) echo t4240;;
+               [tT]1040*) echo t1040;;
+               [tT]2080*) echo t2080;;
+       esac
+}
+
+board2cpu()
+{
+       case $1 in
+               [pP]1023*) echo e500v2;;
+               [pP]2041*) echo e500mc;;
+               [pP]3041*) echo e500mc;;
+               [pP]4080*) echo e500mc;;
+               [pP]5020*-64b) echo 64e5500;;
+               [pP]5020*) echo e5500;;
+               [pP]5040*-64b) echo 64e5500;;
+               [pP]5040*) echo e5500;;
+               [bB]4860*-64b) echo 64e6500;;
+               [bB]4860*) echo e6500;;
+               [tT]4240*-64b) echo 64e6500;;
+               [tT]4240*) echo e6500;;
+               [tT]1040*-64b) echo 64e5500;;
+               [tT]1040*) echo e5500;;
+               [tT]2080*-64b) echo 64e6500;;
+               [tT]2080*) echo e6500;;
+       esac
+}
+
+declare -l board=p4080ds
+while getopts "m:" flags
+do
+
+	case $flags in
+		m)
+			case $OPTARG in
+				p2041rdb | p4080ds | b4860qds | b4860qds-64b | t4240qds | t4240qds-64b | t4240rdb | t4240rdb-64b | t2080qds | t2080qds-64b)
+					board=$OPTARG
+					;;
+				*)
+					echo Unknown board $OPTARG. Defaulting to $board
+					;;
+			esac
+			;;
+		?) echo Defaulting to $board;;
+	esac
+done
+declare -x -u SOC=$(board2soc $board)
+
+if [[ $board =~ "-64b" ]]
+then
+	prefix="64"
+else
+	prefix=""
+fi
+
+sysroot="${SDK_ROOT}/build_${board}_release/tmp/sysroots"
+if [[ -d "${sysroot}" ]]
+then
+	export PATH="${sysroot}/`uname -m`-linux/usr/bin:$PATH"
+	export PATH="${sysroot}/`uname -m`-linux/usr/bin/ppc$(board2cpu $board)-fsl-linux/:$PATH"
+
+	export PKG_CONFIG_SYSROOT_DIR="${sysroot}/$board"
+	export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${PKG_CONFIG_SYSROOT_DIR}/usr/lib${prefix}/pkgconfig"
+	export PKG_CONFIG_LIBDIR=${PKG_CONFIG_SYSROOT_DIR}/usr/lib/pkgconfig
+	export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
+else
+	echo "error: ${sysroot} does not exist or is not a valid sysroot"
+	echo "Please set SDK_ROOT environment variable to a correct path (currently is ${SDK_ROOT})"
+
+	if [[ "${BASH_SOURCE[0]}" == "$0" ]]
+	then
+		exit
+	else
+		return
+	fi
+fi
+
+export ARCH=powerpc${prefix}
+export CROSS_COMPILE=powerpc${prefix}-fsl-linux-
+export CC="${CROSS_COMPILE}gcc --sysroot=${PKG_CONFIG_SYSROOT_DIR}"
+export LD="${CROSS_COMPILE}ld --sysroot=${PKG_CONFIG_SYSROOT_DIR}"
+export USDPAA_CFLAGS="-I${PKG_CONFIG_SYSROOT_DIR}/usr/include/usdpaa"
+export USDPAA_LDFLAGS="-L${PKG_CONFIG_SYSROOT_DIR}/usr/lib${prefix}"
+unset -v board PKG_CONFIG_SYSROOT_DIR PKG_CONFIG_LIBDIR PKG_CONFIG_ALLOW_SYSTEM_LIBS prefix sysroot
