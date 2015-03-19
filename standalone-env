@@ -37,6 +37,25 @@ then
 	export SDK_ROOT="$PWD/../fsl-qoriq-sdk"
 fi
 
+# fman_version translates the board type name into the SOC symbol needed by
+# fmlib to select the FMan version. Although the translated values may seem
+# misaligned, these values are set according to the fmlib user's guide.
+fman_version()
+{
+	case $1 in
+		[pP]1023*) echo p1023;;
+		[pP]2041*) echo p4080;;
+		[pP]3041*) echo p4080;;
+		[pP]4080*) echo p4080;;
+		[pP]5020*) echo p5020;;
+		[pP]5040*) echo p5020;;
+		[bB]4860*) echo b4860;;
+		[tT]4240*) echo b4860;;
+		[tT]1040*) echo b4860;;
+		[tT]2080*) echo b4860;;
+	esac
+}
+
 board2soc()
 {
        case $1 in
@@ -94,6 +113,7 @@ do
 	esac
 done
 declare -x -u SOC=$(board2soc $board)
+declare -u FMAN_VARIANT=$(fman_version $board)
 
 if [[ $board =~ "-64b" ]]
 then
@@ -110,7 +130,7 @@ then
 
 	export PKG_CONFIG_SYSROOT_DIR="${sysroot}/$board"
 	export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${PKG_CONFIG_SYSROOT_DIR}/usr/lib${prefix}/pkgconfig"
-	export PKG_CONFIG_LIBDIR=${PKG_CONFIG_SYSROOT_DIR}/usr/lib/pkgconfig
+	export PKG_CONFIG_LIBDIR="${PKG_CONFIG_SYSROOT_DIR}/usr/lib/pkgconfig"
 	export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
 else
 	echo "error: ${sysroot} does not exist or is not a valid sysroot"
@@ -129,5 +149,5 @@ export CROSS_COMPILE=powerpc${prefix}-fsl-linux-
 export CC="${CROSS_COMPILE}gcc --sysroot=${PKG_CONFIG_SYSROOT_DIR}"
 export LD="${CROSS_COMPILE}ld --sysroot=${PKG_CONFIG_SYSROOT_DIR}"
 export USDPAA_CFLAGS="-I${PKG_CONFIG_SYSROOT_DIR}/usr/include/usdpaa"
-export USDPAA_LDFLAGS="-L${PKG_CONFIG_SYSROOT_DIR}/usr/lib${prefix}"
+export FMLIB_CFLAGS="-I${PKG_CONFIG_SYSROOT_DIR}/usr/include/fmd -I${PKG_CONFIG_SYSROOT_DIR}/usr/include/fmd/Peripherals -I${PKG_CONFIG_SYSROOT_DIR}/usr/include/fmd/integrations -D$FMAN_VARIANT -DNCSW_LINUX"
 unset -v board PKG_CONFIG_SYSROOT_DIR PKG_CONFIG_LIBDIR PKG_CONFIG_ALLOW_SYSTEM_LIBS prefix sysroot

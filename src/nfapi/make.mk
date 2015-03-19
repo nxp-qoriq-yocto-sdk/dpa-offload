@@ -30,27 +30,29 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # The sub-component library name
-LIBNAME = libdpa-offload.a
+LIBNAME = libdpa-offload-nf.a
 LIBS += $(LIBNAME)
 
-# The sub-component objects
-OBJS = dpa_classifier.o \
-	dpa_ipsec.o \
-	dpa_stats.o \
-	dpa_ipsec_algs.o
+OBJS = arp_nfapi.o fib_nfapi.o ip4_fwd_nfapi.o ip4_mcfwd_nfapi.o \
+       ip6_fwd_nfapi.o ip6_mcfwd_nfapi.o ipmr_nfapi.o ipsec_nfapi.o nd_nfapi.o \
+       neigh_nfapi.o rule_nfapi.o
 
 ABS_OBJS := $(foreach obj,$(OBJS),$(addprefix $(SRC_SUBDIR)/,$(obj)))
 OBJECTS += $(ABS_OBJS)
 
 # Library interface (files to install)
-ABS_INTERFACE += include/fsl_dpa_offload.h \
-	include/fsl_dpa_classifier.h \
-	include/fsl_dpa_stats.h \
-	include/fsl_dpa_ipsec.h \
-	include/fsl_dpa_ipsec_algs.h
+ABS_INTERFACE += $(wildcard include/nfapi/common/*.h) \
+		$(wildcard include/nfapi/ipsec/*.h) \
+		$(wildcard include/nfapi/ipfwd/*.h) \
+		$(wildcard include/nfapi/nfinfra/*.h) \
+		$(wildcard include/nfapi/*.h)
 
-# Specific build flags for this sub-component
-BUILDFLAGS += -Ilib/fifo_queue $(USDPAA_CFLAGS)
+BUILDFLAGS += -Iinclude/nfapi \
+	-Iinclude/nfapi/ipfwd \
+	-Iinclude/nfapi/ipsec \
+	-Iinclude/nfapi/common \
+	-Iinclude/nfapi/nfinfra \
+	$(FMLIB_CFLAGS)
 
 # Library dependencies (rule)
 $(OUTDIR)/$(LIBNAME): $(ABS_OBJS)
@@ -68,7 +70,3 @@ $(eval $(call add_build_recipe,$(ABS_OBJS),$(BUILDFLAGS)))
 
 # Create sub-component library recipe
 $(eval $(call add_lib_recipe,$(LIBNAME),$(ABS_OBJS)))
-
-# Further subdirectories to search for Makefiles
-SUBDIRS = nfapi
-$(foreach dir,$(SUBDIRS),$(eval $(call include_sub_make,$(SRC_SUBDIR)/$(dir),$(BUILDFLAGS))))
