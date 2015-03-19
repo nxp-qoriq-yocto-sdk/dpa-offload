@@ -34,7 +34,7 @@
 # to sucessfully build USDPAA.
 if [[ -z ${SDK_ROOT} ]]
 then
-	export SDK_ROOT="$PWD/../fsl-qoriq-sdk"
+	export SDK_ROOT="$PWD/../../fsl-qoriq-sdk"
 fi
 
 # fman_version translates the board type name into the SOC symbol needed by
