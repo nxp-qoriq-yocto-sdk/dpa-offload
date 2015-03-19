@@ -55,6 +55,8 @@ else
 	CFLAGS += -mcpu=e500mc
 endif
 
+CFLAGS += $(CDEFINES)
+
 OBJECTS :=
 LIBS :=
 ABS_INTERFACE :=
