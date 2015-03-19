@@ -42,6 +42,7 @@
 
 #include "fsl_dpa_offload.h"
 
+#include "common_nfapi.h"
 #include "ip4_fwd_nfapi.h"
 #include "ip6_fwd_nfapi.h"
 
@@ -108,7 +109,7 @@ bool nfapi_rule_remove(struct nfapi_rule_table_t *rt,
 		       uint32_t keylen);
 
 struct nfapi_rule_t *nfapi_rule_lookup(struct nfapi_rule_table_t *rt,
-					const uint32_t *key,
+					const void *key,
 					uint32_t keylen);
 
 

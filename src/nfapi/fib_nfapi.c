@@ -75,7 +75,7 @@ struct nfapi_fib_table_t *nfapi_fib_table_create(
 struct nfapi_fib_table_t *nfapi_fib_table_init(
 				    struct nfapi_fib_hash_table_t *hash_tbl,
 				    struct nfapi_fib_table_t *fib_table,
-				    const uint32_t *key, int family)
+				    const uint16_t *key, int family)
 {
 	if (!hash_tbl)
 		return NULL;
@@ -109,7 +109,7 @@ static inline uint32_t compute_hash(const void *key, uint32_t key_len,
 
 static struct nfapi_hash_bucket_t
 *__fib_table_find_bucket(struct nfapi_fib_hash_table_t *hash_tbl,
-		         const uint32_t *key, uint32_t keylen)
+		         const void *key, uint32_t keylen)
 {
 	uint32_t hash;
 	if (!hash_tbl)
@@ -124,7 +124,7 @@ static struct nfapi_hash_bucket_t
 
 static struct nfapi_fib_table_t **__fib_table_find(
 				     struct nfapi_hash_bucket_t *bucket,
-				     const uint32_t *key, uint32_t keylen)
+				     const void *key, uint32_t keylen)
 {
 	struct nfapi_fib_table_t **nptr;
 	struct nfapi_fib_table_t *fib_table;
@@ -196,7 +196,7 @@ static bool __fib_table_add(struct nfapi_fib_hash_table_t *hash_tbl,
 
 static struct nfapi_fib_table_t *__fib_table_lookup(
 				      struct nfapi_hash_bucket_t *bucket,
-				      const uint32_t *key, uint32_t keylen)
+				      const void *key, uint32_t keylen)
 {
 	struct nfapi_fib_table_t *fib_table;
 	struct nfapi_fib_table_t **cur_ptr;
@@ -236,7 +236,7 @@ bool nfapi_fib_table_add(struct nfapi_fib_hash_table_t *hash_tbl,
 }
 
 bool nfapi_fib_table_remove(struct nfapi_fib_hash_table_t *hash_tbl,
-			   const uint32_t *key,
+			   const void *key,
 			   uint32_t keylen)
 {
 	struct nfapi_hash_bucket_t *bucket;
@@ -261,7 +261,7 @@ bool nfapi_fib_table_remove(struct nfapi_fib_hash_table_t *hash_tbl,
 
 struct nfapi_fib_table_t *nfapi_fib_table_lookup(
 					struct nfapi_fib_hash_table_t *hash_tbl,
-					const uint32_t *key,
+					const void *key,
 					uint32_t keylen)
 {
 	struct nfapi_hash_bucket_t *bucket;

@@ -43,6 +43,7 @@
 #include "ipmr_nfapi.h"
 #include "neigh_nfapi.h"
 #include "rule_nfapi.h"
+#include "init_nfapi.h"
 
 #define PRIORITY_2TX	4
 
@@ -55,61 +56,6 @@ enum nf_ipfwd_addr_family {
 	MAX_ADDR
 };
 
-enum nf_ipfwd_table_type {
-	NEIGH = 0,
-	RULE,
-	FIB,
-	GROUP_IIF,
-	MFC,
-	MANIP,
-	MAX_TABLE
-};
-
-struct nf_ipfwd_action {
-	/* Fq associated with the route ccnode */
-	struct qman_fq fq;
-
-	/*
-	 * Action type (enqueue to route ccnode or action next table)
-	 * Next table action is set when the route ccnode is on the
-	 * same port as rule ccnode
-	 */
-	enum dpa_cls_tbl_action_type	type;
-	/*
-	 * route ccnode id(mapped with a route table id). A rule entry
-	 * will point to a goto table identified by this id.
-	 * The  id links a rule table entry to a route ccnode. The enqueue
-	 * action will be in the aforementioned fq
-	 */
-	int rt_table_no;
-};
-
-struct nf_ipfwd_cc {
-	/* Classifier table descriptor */
-	int td;
-	/*
-	 * Interface id which current ccnode belongs to
-	 * (not used for route ccnode)
-	 */
-	int ifid;
-	/* Action for a specific rule table.*/
-	struct nf_ipfwd_action action;
-};
-
-/*
- * NFAPI IP4/IP6 unicast forwarding classifier resources
- */
-struct nf_ipfwd_resources {
-	/* TTL decrement header manip operation used only for mcast resources*/
-	void *ttl_dec_hm;
-	/* Number of classifier tables */
-	int num_td;
-	/* Key size, common for all tables */
-	int keysize;
-	/* Classifier resources array */
-	struct nf_ipfwd_cc nf_cc[0];
-};
-
 struct nf_ipfwd_data {
 	struct nfapi_eth_ifs eth_if[MAX_IFS];
 	struct nfapi_neigh_table_t neigh_tbl[MAX_ADDR];
@@ -119,11 +65,11 @@ struct nf_ipfwd_data {
 	struct nfapi_mr_table_t mr_tbl[MAX_ADDR];
 	struct nfapi_fwd_manip_table_t manip_tbl[MAX_ADDR];
 	/* IP forwarding unicast route classifier resources. */
-	struct nf_ipfwd_resources *ip4fwd_route_nf_res,
-				  *ip6fwd_route_nf_res;
+	struct nf_ipfwd_resources *ip4_route_nf_res,
+				  *ip6_route_nf_res;
 	/* IP forwarding unicast rule classifier resources. */
-	struct nf_ipfwd_resources *ip4fwd_rule_nf_res,
-				  *ip6fwd_rule_nf_res;
+	struct nf_ipfwd_resources *ip4_rule_nf_res,
+				  *ip6_rule_nf_res;
 	/* IP forwarding multicast interface table classifier resources. */
 	struct nf_ipfwd_resources *ip4_mc_iif_grp_nf_res,
 				  *ip6_mc_iif_grp_nf_res;

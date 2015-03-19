@@ -12,6 +12,24 @@
 #include "common_nfapi.h"
 
 /*!
+ * NFInfra packet meta information associated with the packet.
+ */
+struct nfinfra_pkt_meta {
+	nf_ns_id nsid; /**< Namespace Identifier */
+	uint16_t l2_proto; /**< L2 protocol of the packet */
+	nf_if_id ifid; /**< Interface identifier. This value should be
+		interpreted based on the current context of packet processing.
+		This points to incoming network device in case of ingress and
+		outgoing network device in case of egress context. */
+	nf_if_id in_ifid; /**< Incoming interface identifier */
+	uint8_t pkt_type; /**< Type of the packet */
+	uint8_t reserved1; /**< Reserved field and not to be interpreted
+		by user */
+	uint16_t reserved2; /**< Reserved field and not to be interpreted
+		by user */
+};
+
+/*!
  * @brief      Callback function to handle exception packet that is
  *             for reception.
  *
@@ -24,7 +42,7 @@
  *
  * @returns None.
  *
- * @ingroup NF-INFRA 
+ * @ingroup NF-INFRA
  */
 typedef void (*nfinfra_receive_packet_fn)(void *pkt);
 
@@ -35,13 +53,13 @@ typedef void (*nfinfra_receive_packet_fn)(void *pkt);
  * @details    Handle packet transmission on an interface for which
  *             driver is not present in data path. Typically this
  *             happens when data path frind packet for transmission
- *             on a logical interface (e.g: gre, ipip) 
+ *             on a logical interface (e.g: gre, ipip)
  *
  * @param[in]	pkt - pointer to the packet.
  *
  * @returns None.
  *
- * @ingroup NF-INFRA 
+ * @ingroup NF-INFRA
  */
 typedef void (*nfinfra_transmit_packet_fn)(void *pkt);
 
@@ -67,7 +85,7 @@ struct nfinfra_netns_stats {
 };
 
 /*! Network infra structure DP capabilities structure. */
-struct nfinfra_capabilities { 
+struct nfinfra_capabilities {
 	uint64_t capabilities; /*!< List of capabilities */
 };
 
@@ -79,7 +97,7 @@ struct nfinfra_outargs{
 
 
 /*! Output arguments structure for namespace statistics retrieval
- *  API 
+ *  API
  */
 struct nfinfra_netns_get_stats_outargs {
 	int32_t result;	/*!< Result code of the requested operation.
@@ -95,8 +113,8 @@ struct nfinfra_netns_get_stats_outargs {
  *		copied.
  * @returns	0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_api_get_version(char *version);
 
 
@@ -108,15 +126,15 @@ int32_t nfinfra_api_get_version(char *version);
  *
  * @returns  0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_api_get_capabilities(struct nfinfra_capabilities *capabilities);
 
 
 /*!
  * @brief   Adds a network namespace
  *
- * @details    This function first validates the incoming parameters and 
+ * @details    This function first validates the incoming parameters and
  *             if all validations
  *             succeed, adds the entry in the database.
  *
@@ -130,8 +148,8 @@ int32_t nfinfra_api_get_capabilities(struct nfinfra_capabilities *capabilities);
  *
  * @returns    0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_netns_add(
 			nf_ns_id nsid,
 			nf_api_control_flags flags,
@@ -152,8 +170,8 @@ int32_t nfinfra_netns_add(
  *
  * @returns   0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_netns_delete(
 			nf_ns_id nsid,
 			nf_api_control_flags flags,
@@ -282,8 +300,8 @@ struct nfinfra_netdev_del {
  *
  * @returns  0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_netdev_add(
 			nf_ns_id nsid,
 			const struct nfinfra_netdev_add *in,
@@ -307,8 +325,8 @@ int32_t nfinfra_netdev_add(
  *
  * @returns  0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_netdev_mod(
 			nf_ns_id nsid,
 			const struct nfinfra_netdev_mod *in,
@@ -332,8 +350,8 @@ int32_t nfinfra_netdev_mod(
  *
  * @returns  0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_netdev_del(
 			nf_ns_id nsid,
 			const struct nfinfra_netdev_del *in,
@@ -345,19 +363,19 @@ int32_t nfinfra_netdev_del(
 
 /*!
  * @brief    This API retrieves statistics of a given network namespace.
- * 
+ *
  * @param[in]  nsid - Network namespace ID.
- * 
+ *
  * @param[in]  flags - API behavioural flags.
- * 
+ *
  * @param[out]  out - pointer to nfinfra_netns_get_stats_outargs structure.
- * 
+ *
  * @param[in]  resp - Response arguments for asynchronous call.
  *
  * @returns   0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_netns_stats_get(
 			nf_ns_id nsid,
 			nf_api_control_flags flags,
@@ -376,8 +394,8 @@ int32_t nfinfra_netns_stats_get(
  *
  * @returns      0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_notification_hooks_register(
 			const struct nfinfra_notification_hooks *hooks);
 
@@ -386,8 +404,8 @@ int32_t nfinfra_notification_hooks_register(
  *
  * @returns  0 on Success or negative value on failure
  *
- * @ingroup NF-INFRA 
- */ 
+ * @ingroup NF-INFRA
+ */
 int32_t nfinfra_notification_hooks_deregister(void);
 
 #endif /* __NFINFRA_NFAPI_H */

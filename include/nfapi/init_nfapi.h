@@ -33,9 +33,12 @@
 #ifndef _INIT_NFAPI_H
 #define _INIT_NFAPI_H
 
-#include "ncsw_ext.h"
 
+#include "ncsw_ext.h"
+#include "compat.h"
+#include "fsl_qman.h"
 #include "fsl_dpa_ipsec.h"
+#include "fsl_dpa_classifier.h"
 
 
 /* Data received from the application */
@@ -78,6 +81,52 @@ struct net_if {
 	const struct fm_eth_port_cfg *cfg;
 };
 
+struct nf_ipfwd_action {
+	/* Fq associated with the route ccnode */
+	struct qman_fq fq;
+
+	/*
+	 * Action type (enqueue to route ccnode or action next table)
+	 * Next table action is set when the route ccnode is on the
+	 * same port as rule ccnode
+	 */
+	enum dpa_cls_tbl_action_type	type;
+};
+
+struct nf_ipfwd_cc {
+	/* Classifier table descriptor */
+	int td;
+	/*
+	 * Interface id which current ccnode belongs to
+	 * (not used for route ccnode)
+	 */
+	int ifid;
+	/*
+	 * route ccnode id(mapped with a route table id). A rule entry
+	 * will point to a goto table identified by this id.
+	 * The  id links a rule table entry to a route ccnode. The enqueue
+	 * action will be in the aforementioned fq
+	 */
+	int rt_table_no;
+	/* Action for a specific rule table.*/
+	struct nf_ipfwd_action action;
+};
+
+/*
+ * NFAPI IP4/IP6 unicast forwarding classifier resources
+ */
+struct nf_ipfwd_resources {
+	/* TTL decrement header manip operation used only for mcast resources*/
+	void *ttl_dec_hm;
+	/* Number of classifier tables */
+	int num_td;
+	/* Key size, common for all tables */
+	int keysize;
+	/* Classifier resources array */
+	struct nf_ipfwd_cc nf_cc[0];
+};
+
+
 struct nf_ipsec_init_data {
 
 	/* user defined info */
@@ -95,7 +144,20 @@ struct nf_ipsec_init_data {
 struct nf_ipfwd_init_data {
 	/* user defined info */
 	struct nf_ipfwd_user_data user_data;
-	/* TODO: add necessary fields */
+
+	/* IP forwarding unicast route classifier resources. */
+	struct nf_ipfwd_resources *ip4_route_nf_res,
+				  *ip6_route_nf_res;
+	/* IP forwarding unicast rule classifier resources. */
+	struct nf_ipfwd_resources *ip4_rule_nf_res,
+				  *ip6_rule_nf_res;
+	/* IP forwarding multicast interface table classifier resources. */
+	struct nf_ipfwd_resources *ip4_mc_iif_grp_nf_res,
+				  *ip6_mc_iif_grp_nf_res;
+	/* IP forwarding multicast route table classifier resources. */
+	struct nf_ipfwd_resources *ip4_mc_route_nf_res,
+				  *ip6_mc_route_nf_res;
+
 };
 
 struct nf_init_data {
@@ -108,5 +170,9 @@ struct nf_init_data {
 };
 
 extern struct nf_init_data *gbl_init;
+
+int init_nf_ipsec_global_data(void);
+
+int init_nf_ipfwd_global_data(void);
 
 #endif /* _INIT_NFAPI_H */

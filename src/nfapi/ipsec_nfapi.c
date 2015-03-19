@@ -50,9 +50,11 @@
 
 #include "fsl_dpa_ipsec.h"
 
-#include "init_nfapi.h"
+#include "common_nfapi.h"
 #include "ipsec_nfapi.h"
 #include "ipsec.h"
+#include "init_nfapi.h"
+#include "utils_nfapi.h"
 
 
 /* Global nf_ipsec_data component */
@@ -114,16 +116,16 @@ static int check_sa_params(const struct nf_ipsec_sa_add_inargs *in)
 	}
 
 	if (in->dir == NF_IPSEC_OUTBOUND) {
-		if (nf_sa->out.mtu > MAX_VAL_16BITS) {
+		if (nf_sa->outb.mtu > MAX_VAL_16BITS) {
 			error(0, EINVAL, "Value of MTU bigger than %d is not supported\n",
 					MAX_VAL_16BITS);
 			return -EINVAL;
 		}
 
-		if (nf_sa->out.iv && (nf_sa->out.iv_len_bits > max_bits ||
-				!nf_sa->out.iv_len_bits)) {
+		if (nf_sa->outb.iv && (nf_sa->outb.iv_len_bits > max_bits ||
+				!nf_sa->outb.iv_len_bits)) {
 			error(0, EINVAL, "Initialization vector bits (%d) must be in range (8 - %d)\n",
-					nf_sa->out.iv_len_bits, max_bits);
+					nf_sa->outb.iv_len_bits, max_bits);
 			return -EINVAL;
 		}
 	}
@@ -154,11 +156,38 @@ static int check_sa_params(const struct nf_ipsec_sa_add_inargs *in)
 	}
 
 	for (i = 0; i < nf_sa->n_selectors; i++) {
-		if (nf_sa->selectors[i].selector.version != NF_IPV4 &&
-		    nf_sa->selectors[i].selector.version != NF_IPV6) {
+		struct nf_ipsec_selector *sel = &nf_sa->selectors[i].selector;
+
+		if (sel->version == NF_IPV4) {
+			if (sel->src_ip4.type != NF_IPA_SUBNET) {
+				error(0, EINVAL, "Only address type SUBNET is supported for selector source IP");
+				return -EINVAL;
+			}
+			if (sel->dest_ip4.type != NF_IPA_SUBNET) {
+				error(0, EINVAL, "Only address type SUBNET is supported for selector destination IP");
+				return -EINVAL;
+			}
+		} else if (sel->version == NF_IPV6) {
+			if (sel->src_ip6.type != NF_IPA_SUBNET) {
+				error(0, EINVAL, "Only address type SUBNET is supported for selector source IP");
+				return -EINVAL;
+			}
+			if (sel->dest_ip6.type != NF_IPA_SUBNET) {
+				error(0, EINVAL, "Only address type SUBNET is supported for selector destination IP");
+				return -EINVAL;
+			}
+		} else {
 			error(0, EINVAL, "Invalid selector IP version %d. It should be %d or %d",
-					nf_sa->selectors[i].selector.version,
-					NF_IPV4, NF_IPV6);
+				sel->version, NF_IPV4, NF_IPV6);
+			return -EINVAL;
+		}
+
+		if (sel->protocol != NF_IPSEC_SEL_PROTOCOL_ANY &&
+		    sel->protocol != IPPROTO_ICMP &&
+		    sel->protocol != IPPROTO_ICMPV6 &&
+		    (sel->src_port.type != NF_L4_PORT_SINGLE ||
+		     sel->dest_port.type != NF_L4_PORT_SINGLE)) {
+			error(0, EINVAL, "Only port type SINGLE is supported");
 			return -EINVAL;
 		}
 	}
@@ -175,6 +204,12 @@ static int check_policy_params(const struct nf_ipsec_spd_add_inargs *in)
 	if (in->dir != NF_IPSEC_INBOUND && in->dir != NF_IPSEC_OUTBOUND) {
 		error(0, EINVAL, "Invalid policy direction %d. It should be %d or %d",
 				in->dir, NF_IPSEC_INBOUND, NF_IPSEC_OUTBOUND);
+		return -EINVAL;
+	}
+
+	if ((in->dir == NF_IPSEC_INBOUND) &&
+	    (spd_params->action != NF_IPSEC_POLICY_ACTION_IPSEC)) {
+		error(0, EINVAL, "For INBOUND direction only policy action IPSEC is supported\n");
 		return -EINVAL;
 	}
 
@@ -207,12 +242,56 @@ static int check_policy_params(const struct nf_ipsec_spd_add_inargs *in)
 		return -EINVAL;
 	}
 
+	if (spd_params->fragments_opts) {
+		error(0, EINVAL, "Fragmentation options (%d) is not currently supported",
+			spd_params->fragments_opts);
+		return -EINVAL;
+	}
+
+	if (spd_params->n_selectors > NF_IPSEC_MAX_SEL) {
+		error(0, EINVAL, "Exceeded maximum number of selectors %d",
+			NF_IPSEC_MAX_SEL);
+		return -EINVAL;
+	}
+
+	if (spd_params->n_selectors > 0 && !spd_params->selectors) {
+		error(0, EINVAL, "Number of selectors(%d) bigger than 0, pointer to array of selectors NULL",
+				spd_params->n_selectors);
+		return -EINVAL;
+	}
+
 	for (i = 0; i < spd_params->n_selectors; i++) {
-		if (spd_params->selectors[i].version != NF_IPV4 &&
-		    spd_params->selectors[i].version != NF_IPV6) {
+		struct nf_ipsec_selector *sel = &spd_params->selectors[i];
+
+		if (sel->version == NF_IPV4) {
+			if (sel->src_ip4.type != NF_IPA_SUBNET) {
+				error(0, EINVAL, "Only address type SUBNET is supported for selector source IP");
+				return -EINVAL;
+			}
+			if (sel->dest_ip4.type != NF_IPA_SUBNET) {
+				error(0, EINVAL, "Only address type SUBNET is supported for selector destination IP");
+				return -EINVAL;
+			}
+		} else if (sel->version == NF_IPV6) {
+			if (sel->src_ip6.type != NF_IPA_SUBNET) {
+				error(0, EINVAL, "Only address type SUBNET is supported for selector source IP");
+				return -EINVAL;
+			}
+			if (sel->dest_ip6.type != NF_IPA_SUBNET) {
+				error(0, EINVAL, "Only address type SUBNET is supported for selector destination IP");
+				return -EINVAL;
+			}
+
+		} else {
 			error(0, EINVAL, "Invalid selector IP version %d. It should be %d or %d",
-					spd_params->selectors[i].version,
-					NF_IPV4, NF_IPV6);
+				sel->version, NF_IPV4, NF_IPV6);
+			return -EINVAL;
+		}
+
+		if (sel->protocol != NF_IPSEC_SEL_PROTOCOL_ANY &&
+		   (sel->src_port.type != NF_L4_PORT_SINGLE ||
+		    sel->dest_port.type != NF_L4_PORT_SINGLE)) {
+			error(0, EINVAL, "Only port type SINGLE is not supported");
 			return -EINVAL;
 		}
 	}
@@ -260,14 +339,14 @@ static void *create_sa_node(struct nf_ipsec_data *nf_ipsec_data,
 	memcpy(&sa->cipher_key, nf_sa->crypto_params.cipher_key,
 	       nf_sa->crypto_params.cipher_key_len_bits/BITS_IN_BYTE);
 
-	if (nf_sa->crypto_params.com_bkey) {
-		memcpy(&sa->comb_key, nf_sa->crypto_params.com_bkey,
+	if (nf_sa->crypto_params.comb_key) {
+		memcpy(&sa->comb_key, nf_sa->crypto_params.comb_key,
 		       nf_sa->crypto_params.comb_key_len_bits/BITS_IN_BYTE);
 	}
 
 	if (in->dir == NF_IPSEC_OUTBOUND) {
-		memcpy(&sa->iv, nf_sa->out.iv,
-		       nf_sa->out.iv_len_bits/BITS_IN_BYTE);
+		memcpy(&sa->iv, nf_sa->outb.iv,
+		       nf_sa->outb.iv_len_bits/BITS_IN_BYTE);
 	}
 
 	/* Obtain direction */
@@ -394,53 +473,84 @@ static void remove_link_node(struct nf_ipsec_data *nf_ipsec_data,
 	mem_cache_free(nf_ipsec_data->link_nodes[link->pool_id], link);
 }
 
-static inline int addr_match(struct nf_ipsec_selector_addr *ad1,
-			     struct nf_ipsec_selector_addr *ad2,
-			     enum nf_ip_version version)
+static inline int addr_match_ipv4(struct nf_ipv4_addr_info *a1,
+				  struct nf_ipv4_addr_info *a2)
 {
-	if (ad1->addr_type != ad2->addr_type)
+	if (a1->type != a2->type)
 		return false;
-	if (ad1->addr_type != NF_IPSEC_ADDR_TYPE_SUBNET) {
-		error(0, EINVAL, "Only address type SUBNET is supported\n");
+	if (a1->type != NF_IPA_SUBNET) {
+		error(0, EINVAL, "Only addres type SUBNET is supported\n");
 		return false;
 	}
+	if (a1->subnet.addr != a2->subnet.addr)
+		return false;
+	if (a1->subnet.prefix_len != a2->subnet.prefix_len)
+		return false;
 
-	switch (version) {
-	case NF_IPV4:
-		if (ad1->prefixaddr.v4.ipv4addr != ad2->prefixaddr.v4.ipv4addr)
-			return false;
-		if (ad1->prefixaddr.v4.ipv4plen != ad2->prefixaddr.v4.ipv4plen)
-			return false;
-		break;
-	case NF_IPV6:
-		if (memcmp(&ad1->prefixaddr.v6.ipv6addr.b_addr,
-			   &ad2->prefixaddr.v6.ipv6addr.b_addr,
-			   sizeof(ad2->prefixaddr.v6.ipv6addr.b_addr)))
-			return false;
-		if (ad1->prefixaddr.v6.ipv6plen != ad2->prefixaddr.v6.ipv6plen)
-			return false;
-		break;
-	default:
-		error(0, EINVAL, "Invalid IP version\n");
+	return true;
+}
+
+static inline int addr_match_ipv6(struct nf_ipv6_addr_info *a1,
+				  struct nf_ipv6_addr_info *a2)
+{
+	if (a1->type != a2->type)
+		return false;
+	if (a1->type != NF_IPA_SUBNET) {
+		error(0, EINVAL, "Only addres type SUBNET is supported\n");
 		return false;
 	}
+	if (memcmp(&a1->subnet.addr.b_addr, &a2->subnet.addr.b_addr,
+				sizeof(a1->subnet.addr.b_addr)))
+		return false;
+	if (a1->subnet.prefix_len != a2->subnet.prefix_len)
+		return false;
+
+	return true;
+}
+
+static inline int port_match(struct nf_l4_port *p1,
+			     struct nf_l4_port *p2)
+{
+	if (p1->type != p2->type)
+		return false;
+	if (p1->type != NF_L4_PORT_SINGLE) {
+		error(0, EINVAL, "Only port type SINGLE is supported\n");
+		return false;
+	}
+	if (p1->single.port != p2->single.port)
+		return false;
+
 	return true;
 }
 
 static bool selector_match(struct nf_ipsec_selector *psel,
 			   struct nf_ipsec_selector *sel)
 {
-	struct nf_ipsec_selector_protocol_choice *sc = &sel->protocol_choice;
-	struct nf_ipsec_selector_protocol_choice *pc = &psel->protocol_choice;
-
 	if (sel->version != psel->version ||
-	   !addr_match(&sel->src_ip, &psel->src_ip, sel->version) ||
-	   !addr_match(&sel->dest_ip, &psel->dest_ip, sel->version) ||
-	    sc->protocol != pc->protocol ||
-	    sc->src_port.start != pc->src_port.start ||
-	    sc->src_port.end != pc->src_port.end ||
-	    sc->dest_port.start != pc->dest_port.start ||
-	    sc->dest_port.end != pc->dest_port.end)
+	    sel->protocol != psel->protocol)
+		return false;
+
+	switch(sel->version) {
+	case NF_IPV4:
+		if (!addr_match_ipv4(&sel->src_ip4, &psel->src_ip4))
+			return false;
+		if (!addr_match_ipv4(&sel->dest_ip4, &psel->dest_ip4))
+			return false;
+		break;
+	case NF_IPV6:
+		if (!addr_match_ipv6(&sel->src_ip6, &psel->src_ip6))
+			return false;
+		if (!addr_match_ipv6(&sel->dest_ip6, &psel->dest_ip6))
+			return false;
+		break;
+	default:
+		error(0, EINVAL, "Invalid IP version\n");
+		return false;
+	}
+
+	if (!port_match(&sel->src_port, &psel->src_port))
+		return false;
+	if (!port_match(&sel->dest_port, &psel->dest_port))
 		return false;
 
 	/* SA selector does not match any policy selector */
@@ -497,9 +607,9 @@ static int get_out_pol_table(struct nf_ipsec_data *nf_ipsec_data,
 
 	pre_sec_out = &gbl_init->ipsec.ipsec_params.pre_sec_out_params;
 	if (sel->version == NF_IPV4)
-		td_idx = GET_POL_TABLE_IDX(sel->protocol_choice.protocol, IPV4);
+		td_idx = GET_POL_TABLE_IDX(sel->protocol, IPV4);
 	else
-		td_idx = GET_POL_TABLE_IDX(sel->protocol_choice.protocol, IPV6);
+		td_idx = GET_POL_TABLE_IDX(sel->protocol, IPV6);
 
 	td = pre_sec_out->table[td_idx].dpa_cls_td;
 	/*
@@ -511,22 +621,6 @@ static int get_out_pol_table(struct nf_ipsec_data *nf_ipsec_data,
 		return -EBADF;
 	}
 	return td;
-}
-
-static int set_ip_addr_mask(uint8_t *mask, uint8_t prefix_len, uint8_t mask_len)
-{
-	static const uint8_t mask_bits[] = {0x00, 0x80, 0xc0, 0xe0, 0xf0, 0xf8,
-					    0xfc, 0xfe, 0xff};
-	uint8_t bit, off;
-
-	off = prefix_len / 8;
-	bit = prefix_len % 8;
-	while (off--)
-		*mask++ = 0xff;
-	if (bit)
-		*mask = mask_bits[bit];
-
-	return 0;
 }
 
 static int fill_table_key(int td, struct nf_ipsec_selector *sel,
@@ -542,45 +636,75 @@ static int fill_table_key(int td, struct nf_ipsec_selector *sel,
 		field_mask = (uint8_t) (1 << i);
 		switch (key_fields & field_mask) {
 		case DPA_IPSEC_KEY_FIELD_SIP:
-			memcpy(key + off,
-			       &sel->src_ip.prefixaddr.v4.ipv4addr,
-			       sel->src_ip.prefixaddr.v4.ipv4plen);
-			err = set_ip_addr_mask(mask + off,
-					sel->src_ip.prefixaddr.v4.ipv4plen,
-					IP_ADDR_LEN_T_IPv4);
-			if (err < 0)
-				return err;
-			off += IP_ADDR_LEN_T_IPv4;
+			/* Copy IP source address and set mask */
+			if (sel->version == NF_IPV4) {
+				if (sel->src_ip4.type != NF_IPA_SUBNET) {
+					error(0, EINVAL, "Only selector address type SUBNET is supported");
+					return -EINVAL;
+				}
+				memcpy(key + off, &sel->src_ip4.subnet.addr,
+						IP_ADDR_LEN_T_IPv4);
+				set_ip_addr_mask(mask + off,
+						sel->src_ip4.subnet.prefix_len);
+			} else if (sel->version == NF_IPV6) {
+				if (sel->src_ip6.type != NF_IPA_SUBNET) {
+					error(0, EINVAL, "Only selector address type SUBNET is supported");
+					return -EINVAL;
+				}
+				memcpy(key + off, &sel->src_ip6.subnet.addr,
+						NF_IPV6_ADDRU32_LEN);
+				set_ip_addr_mask(mask + off,
+						sel->src_ip6.subnet.prefix_len);
+			} else {
+				error(0, EINVAL, "Selector version is not IPv4 or IPv6");
+				return -EINVAL;
+			}
+			off += IP_ADDR_LEN(sel->version);
 			break;
 
 		case DPA_IPSEC_KEY_FIELD_DIP:
-			memcpy(key + off,
-			       &sel->dest_ip.prefixaddr.v4.ipv4addr,
-			       sel->dest_ip.prefixaddr.v4.ipv4plen);
-			err = set_ip_addr_mask(mask + off,
-					sel->dest_ip.prefixaddr.v4.ipv4plen,
-					IP_ADDR_LEN_T_IPv4);
-			if (err < 0)
-				return err;
-			off += IP_ADDR_LEN_T_IPv4;
+			/* Copy IP destination address and set mask */
+			if (sel->version == NF_IPV4) {
+				if (sel->dest_ip4.type != NF_IPA_SUBNET) {
+					error(0, EINVAL, "Only selector address type SUBNET is supported");
+					return -EINVAL;
+				}
+				memcpy(key + off, &sel->dest_ip4.subnet.addr,
+						IP_ADDR_LEN_T_IPv4);
+				set_ip_addr_mask(mask + off,
+						sel->dest_ip4.subnet.prefix_len);
+			} else if (sel->version == NF_IPV6) {
+				if (sel->dest_ip6.type != NF_IPA_SUBNET) {
+					error(0, EINVAL, "Only selector address type SUBNET is supported");
+					return -EINVAL;
+				}
+				memcpy(key + off, &sel->dest_ip6.subnet.addr,
+						NF_IPV6_ADDRU32_LEN);
+				set_ip_addr_mask(mask + off,
+						sel->dest_ip6.subnet.prefix_len);
+			} else {
+				error(0, EINVAL, "Selector version is not IPv4 or IPv6");
+				return -EINVAL;
+			}
+			off += IP_ADDR_LEN(sel->version);
 			break;
 
 		case DPA_IPSEC_KEY_FIELD_PROTO:
-			key[off] = sel->protocol_choice.protocol;
+			key[off] = sel->protocol;
 			mask[off] = 0xFF;
 			off += IP_PROTO_FIELD_LEN;
 			break;
 
 		/* case DPA_IPSEC_KEY_FIELD_ICMP_TYPE: */
 		case DPA_IPSEC_KEY_FIELD_SPORT:
-			if ((sel->protocol_choice.protocol == IPPROTO_ICMP) ||
-			   (sel->protocol_choice.protocol == IPPROTO_ICMPV6)) {
-				key[off] = sel->protocol_choice.src_port.start;
+			if ((sel->protocol == IPPROTO_ICMP) ||
+			   (sel->protocol == IPPROTO_ICMPV6)) {
+				key[off] = (uint8_t)sel->src_port.single.port;
 				mask[off] = 0xFF;
 				off += ICMP_HDR_FIELD_LEN;
 			} else {
 				memcpy(key + off, (uint8_t *)
-				       &(sel->protocol_choice.src_port.start),
+				       &(sel->src_port.single.port),
 				       PORT_FIELD_LEN);
 				mask[off] = 0xFF;
 				mask[off+1] = 0xFF;
@@ -590,14 +714,14 @@ static int fill_table_key(int td, struct nf_ipsec_selector *sel,
 
 		/* case DPA_IPSEC_KEY_FIELD_ICMP_CODE: */
 		case DPA_IPSEC_KEY_FIELD_DPORT:
-			if ((sel->protocol_choice.protocol == IPPROTO_ICMP) ||
-			   (sel->protocol_choice.protocol == IPPROTO_ICMPV6)) {
-				key[off] = sel->protocol_choice.dest_port.start;
+			if ((sel->protocol == IPPROTO_ICMP) ||
+			   (sel->protocol == IPPROTO_ICMPV6)) {
+				key[off] = (uint8_t)sel->dest_port.single.port;
 				mask[off] = 0xFF;
 				off += ICMP_HDR_FIELD_LEN;
 			} else {
 				memcpy(key + off, (uint8_t *)
-				       &(sel->protocol_choice.dest_port.start),
+				       &(sel->dest_port.single.port),
 				       PORT_FIELD_LEN);
 				mask[off] = 0xFF;
 				mask[off+1] = 0xFF;
@@ -667,9 +791,9 @@ static int create_out_tbl_key(struct nf_ipsec_data *nf_ipsec_data,
 
 	pre_sec_out = &gbl_init->ipsec.ipsec_params.pre_sec_out_params;
 	if (sel->version == NF_IPV4)
-		td_idx = GET_POL_TABLE_IDX(sel->protocol_choice.protocol, IPV4);
+		td_idx = GET_POL_TABLE_IDX(sel->protocol, IPV4);
 	else
-		td_idx = GET_POL_TABLE_IDX(sel->protocol_choice.protocol, IPV6);
+		td_idx = GET_POL_TABLE_IDX(sel->protocol, IPV6);
 
 	*table = pre_sec_out->table[td_idx].dpa_cls_td;
 	key_fields = pre_sec_out->table[td_idx].key_fields;
@@ -712,7 +836,7 @@ static int create_frag_manip(struct nf_ipsec_sa_data *sa,
 	/* Set fragmentation manip update parameters */
 	memset(&hm, 0, sizeof(struct dpa_cls_hm_update_params));
 	hm.op_flags = DPA_CLS_HM_UPDATE_NONE;
-	hm.ip_frag_params.mtu = sa->sa_params.out.mtu;
+	hm.ip_frag_params.mtu = (uint16_t)sa->sa_params.outb.mtu;
 	hm.ip_frag_params.scratch_bpid = gbl_init->ipsec.ipf_bpid;
 	hm.ip_frag_params.df_action = DPA_CLS_HM_DF_ACTION_FRAG_ANYWAY;
 	hm.fm_pcd = gbl_init->pcd_dev;
@@ -744,7 +868,7 @@ static int update_frag_manip(struct nf_ipsec_sa_data *sa,
 	/* Set fragmentation manip update parameters */
 	memset(&hm, 0, sizeof(struct dpa_cls_hm_update_params));
 	hm.op_flags = DPA_CLS_HM_UPDATE_NONE;
-	hm.ip_frag_params.mtu = sa->sa_params.out.mtu;
+	hm.ip_frag_params.mtu = (uint16_t)sa->sa_params.outb.mtu;
 	hm.ip_frag_params.scratch_bpid = gbl_init->ipsec.ipf_bpid;
 	hm.ip_frag_params.df_action = DPA_CLS_HM_DF_ACTION_FRAG_ANYWAY;
 	hm.fm_pcd = gbl_init->pcd_dev;
@@ -796,7 +920,7 @@ static int modify_out_sa_mtu(struct nf_ipsec_data *nf_ipsec_data,
 	}
 
 	memset(&hm_prm, 0, sizeof(struct dpa_cls_hm_update_params));
-	hm_prm.ip_frag_params.mtu = mtu;
+	hm_prm.ip_frag_params.mtu = (uint16_t)mtu;
 
 	ret = dpa_classif_modify_update_hm(sa->frag_hmd,
 			&hm_prm, DPA_CLS_HM_UPDATE_MOD_IP_FRAG_MTU);
@@ -804,7 +928,7 @@ static int modify_out_sa_mtu(struct nf_ipsec_data *nf_ipsec_data,
 		return ret;
 
 	/* Save new MTU value */
-	sa->sa_params.out.mtu = mtu;
+	sa->sa_params.outb.mtu = mtu;
 
 	return 0;
 }
@@ -846,7 +970,7 @@ static int add_dpa_ipsec_in_sa(nf_ns_id nsid, struct nf_ipsec_sa *nf_sa,
 			       struct dpa_ipsec_sa_params *dpa_sa, int *sa_id)
 {
 	struct dpa_ipsec_sa_in_params *dpa_sa_in = &dpa_sa->sa_in_params;
-	uint8_t arw_size = nf_sa->in.anti_replay_window_size;
+	uint8_t arw_size = nf_sa->inb.anti_replay_window_size;
 
 	/* Set SA params depending on flag selection */
 	dpa_sa->use_ext_seq_num = (nf_sa->cmn_flags &
@@ -854,8 +978,8 @@ static int add_dpa_ipsec_in_sa(nf_ns_id nsid, struct nf_ipsec_sa *nf_sa,
 	dpa_sa->sa_mode = (nf_sa->cmn_flags &
 			NF_IPSEC_SA_ENCAP_TRANSPORT_MODE) ?
 			DPA_IPSEC_SA_MODE_TRANSPORT : DPA_IPSEC_SA_MODE_TUNNEL;
-	dpa_sa->hdr_upd_flags |= (nf_sa->in.flags &
-			NF_IPSEC_INSA_PROPOGATE_ECN) ?
+	dpa_sa->hdr_upd_flags |= (nf_sa->inb.flags &
+			NF_IPSEC_INB_SA_PROPOGATE_ECN) ?
 			DPA_IPSEC_HDR_COPY_ECN : 0;
 	dpa_sa->hdr_upd_flags |= DPA_IPSEC_HDR_DEC_TTL;
 
@@ -921,18 +1045,18 @@ static int add_dpa_ipsec_out_sa(nf_ns_id nsid, struct nf_ipsec_sa *nf_sa,
 	memset(dpa_sa_out, 0, sizeof(struct dpa_ipsec_sa_out_params));
 
 	/* Set header update flags */
-	if (nf_sa->out.dscp_handle == NF_IPSEC_DSCP_COPY)
+	if (nf_sa->outb.dscp_handle == NF_IPSEC_DSCP_COPY)
 		dpa_sa->hdr_upd_flags |= DPA_IPSEC_HDR_COPY_DSCP;
-	if (nf_sa->out.df_bit_handle == NF_IPSEC_DF_COPY)
+	if (nf_sa->outb.df_bit_handle == NF_IPSEC_DF_COPY)
 		dpa_sa->hdr_upd_flags |= DPA_IPSEC_HDR_COPY_DF;
 	dpa_sa->hdr_upd_flags |= DPA_IPSEC_HDR_DEC_TTL;
 
 	/* Set the initialization vector */
-	if (nf_sa->out.iv) {
+	if (nf_sa->outb.iv) {
 		dpa_sa_out->init_vector = &init_vector;
-		dpa_sa_out->init_vector->init_vector = nf_sa->out.iv;
+		dpa_sa_out->init_vector->init_vector = nf_sa->outb.iv;
 		dpa_sa_out->init_vector->length =
-				nf_sa->out.iv_len_bits/BITS_IN_BYTE;
+				nf_sa->outb.iv_len_bits/BITS_IN_BYTE;
 	} else {
 		dpa_sa_out->init_vector = NULL;
 	}
@@ -945,11 +1069,11 @@ static int add_dpa_ipsec_out_sa(nf_ns_id nsid, struct nf_ipsec_sa *nf_sa,
 		outer_iphdr.ttl = IPDEFTTL;
 		outer_iphdr.tot_len = sizeof(outer_iphdr);
 
-		if (nf_sa->out.df_bit_handle == NF_IPSEC_DF_SET)
+		if (nf_sa->outb.df_bit_handle == NF_IPSEC_DF_SET)
 			outer_iphdr.frag_off = IP_DONTFRAG;
 
-		if (nf_sa->out.dscp_handle == NF_IPSEC_DSCP_SET)
-			outer_iphdr.tos = nf_sa->out.dscp;
+		if (nf_sa->outb.dscp_handle == NF_IPSEC_DSCP_SET)
+			outer_iphdr.tos = nf_sa->outb.dscp;
 
 		if (nf_sa->cmn_flags & NF_IPSEC_SA_DO_UDP_ENCAP_FOR_NAT_TRAVERSAL)
 			outer_iphdr.tot_len += sizeof(udp_hdr);
@@ -966,8 +1090,8 @@ static int add_dpa_ipsec_out_sa(nf_ns_id nsid, struct nf_ipsec_sa *nf_sa,
 		memcpy(&outer_ip6hdr.ip6_dst, nf_sa->te_addr.dest_ip.ipv6.b_addr,
 			sizeof(nf_sa->te_addr.dest_ip.ipv6.b_addr));
 
-		if (nf_sa->out.dscp_handle == NF_IPSEC_DSCP_SET)
-			outer_ip6hdr.ip6_flow = nf_sa->out.dscp << IP6_TC_OFF;
+		if (nf_sa->outb.dscp_handle == NF_IPSEC_DSCP_SET)
+			outer_ip6hdr.ip6_flow = nf_sa->outb.dscp << IP6_TC_OFF;
 
 		outer_ip6hdr.ip6_nxt = IPPROTO_ESP;
 		outer_ip6hdr.ip6_hlim = IPDEFTTL;
@@ -985,8 +1109,8 @@ static int add_dpa_ipsec_out_sa(nf_ns_id nsid, struct nf_ipsec_sa *nf_sa,
 	dpa_sa_out->post_sec_flow_id = 0;
 
 	/* Set SA per DSCP range values */
-	dpa_sa_out->dscp_start = nf_sa->out.dscp_start;
-	dpa_sa_out->dscp_end = nf_sa->out.dscp_end;
+	dpa_sa_out->dscp_start = (uint16_t)nf_sa->outb.dscp_start;
+	dpa_sa_out->dscp_end = (uint16_t)nf_sa->outb.dscp_end;
 
 	/* Offload SA to DPAA */
 	return dpa_ipsec_create_sa(nsid, dpa_sa, sa_id);
@@ -1152,9 +1276,19 @@ static int process_out_sa_selector(struct nf_ipsec_data *nf_ipsec_data,
 		pol = nf_ipsec_data->pol_mng[dir][policy_id];
 
 		idx = find_pol_sel_idx(pol, &sel->selector);
-		if (idx >= 0 &&
-		    pol->spd_params.action == NF_IPSEC_POLICY_ACTION_IPSEC) {
-			/* SA sel points to a valid policy sel, offload policy*/
+		if (idx >= 0 && pol->spd_params.action ==
+				NF_IPSEC_POLICY_ACTION_IPSEC) {
+			if (pol->entry_ids[idx] != DPA_OFFLD_DESC_NONE)  {
+				/*
+				 * Remove inserted key from
+				 * outbound policy table
+				 */
+				ret = delete_out_pol(pol, idx);
+				if (ret < 0)
+					return ret;
+			}
+
+			/* SA sel points to a valid selector, offload new one */
 			ret = add_dpa_ipsec_out_pol(pol, idx, sa);
 			if (ret < 0)
 				return ret;
@@ -1360,8 +1494,8 @@ static void fetch_sa_params(struct nf_ipsec_sa_data *sa,
 	}
 	dcrypt->auth_key_len_bits = scrypt->auth_key_len_bits;
 	dcrypt->comb_algo = scrypt->comb_algo;
-	if (dcrypt->com_bkey) {
-		memcpy(dcrypt->com_bkey, &sa->comb_key,
+	if (dcrypt->comb_key) {
+		memcpy(dcrypt->comb_key, &sa->comb_key,
 				scrypt->comb_key_len_bits/BITS_IN_BYTE);
 	}
 	dcrypt->comb_key_len_bits = scrypt->comb_key_len_bits;
@@ -1371,16 +1505,16 @@ static void fetch_sa_params(struct nf_ipsec_sa_data *sa,
 				scrypt->cipher_key_len_bits/BITS_IN_BYTE);
 	}
 	dcrypt->cipher_key_len_bits = scrypt->cipher_key_len_bits;
-	if (sa->dir == NF_IPSEC_DIR_OUTBOUND && prm->out.iv) {
-		memcpy(prm->out.iv, &sa->iv,
-			sa->sa_params.out.iv_len_bits/BITS_IN_BYTE);
+	if (sa->dir == NF_IPSEC_DIR_OUTBOUND && prm->outb.iv) {
+		memcpy(prm->outb.iv, &sa->iv,
+			sa->sa_params.outb.iv_len_bits/BITS_IN_BYTE);
 	}
 
 	prm->periodic_time_interval = sa->sa_params.periodic_time_interval;
 	prm->soft_kilobytes_limit = sa->sa_params.soft_kilobytes_limit;
 	prm->hard_kilobytes_limit = sa->sa_params.hard_kilobytes_limit;
-	prm->soft_packet_limit = sa->sa_params.soft_packet_limit;
-	prm->hard_packet_limit = sa->sa_params.hard_packet_limit;
+	prm->soft_pkt_limit = sa->sa_params.soft_pkt_limit;
+	prm->hard_pkt_limit = sa->sa_params.hard_pkt_limit;
 	prm->soft_seconds_limit = sa->sa_params.soft_seconds_limit;
 	prm->hard_seconds_limit = sa->sa_params.hard_seconds_limit;
 	memcpy(&prm->nat_info, &sa->sa_params.nat_info, sizeof(prm->nat_info));
@@ -1543,7 +1677,7 @@ static int store_spd_pol_params(const struct nf_ipsec_policy *spd_prm,
 	/* determine policy priority based on position */
 	pol_list = &nf_ipsec_data->pol_list[pol->dir];
 
-	switch (spd_prm->policy_position) {
+	switch (spd_prm->position) {
 	case NF_IPSEC_POLICY_POSITION_BEGIN:
 		set_pol_position_begin(pol_list, pol);
 		break;
@@ -1571,10 +1705,6 @@ static int set_dpa_ipsec_pol_params(struct dpa_ipsec_policy_params *dpa_pol,
 				    struct nf_ipsec_selector *sel)
 {
 	struct dpa_offload_ip_address *dpa_src_addr, *dpa_dst_addr;
-	struct nf_ipsec_selector_addr *nf_src_addr, *nf_dst_addr;
-
-	nf_src_addr = &sel->src_ip;
-	nf_dst_addr = &sel->dest_ip;
 
 	dpa_src_addr = &dpa_pol->src_addr;
 	dpa_dst_addr = &dpa_pol->dest_addr;
@@ -1586,21 +1716,21 @@ static int set_dpa_ipsec_pol_params(struct dpa_ipsec_policy_params *dpa_pol,
 	dpa_pol->dest_addr.version = sel->version;
 
 	if (sel->version == NF_IPV4) {
-		if (nf_src_addr->addr_type == NF_IPSEC_ADDR_TYPE_SUBNET) {
+		if (sel->src_ip4.type == NF_IPA_SUBNET) {
 			dpa_src_addr->addr.ipv4.word =
-				nf_src_addr->prefixaddr.v4.ipv4addr;
+				sel->src_ip4.subnet.addr;
 			dpa_pol->src_prefix_len =
-				nf_src_addr->prefixaddr.v4.ipv4plen;
+				sel->src_ip4.subnet.prefix_len;
 		} else {
 			error(0, EINVAL, "Selector address type RANGE is not supported\n");
 			return -EINVAL;
 		}
 	} else {
-		if (nf_src_addr->addr_type == NF_IPSEC_ADDR_TYPE_SUBNET) {
+		if (sel->src_ip6.type == NF_IPA_SUBNET) {
 			memcpy(dpa_src_addr->addr.ipv6.word,
-			       nf_src_addr->prefixaddr.v6.ipv6addr.w_addr, 4);
+			       sel->src_ip6.subnet.addr.w_addr, 4);
 			dpa_pol->src_prefix_len =
-			       nf_src_addr->prefixaddr.v6.ipv6plen;
+			       sel->src_ip6.subnet.prefix_len;
 		} else {
 			error(0, EINVAL, "Selector address type RANGE is not supported\n");
 			return -EINVAL;
@@ -1609,21 +1739,21 @@ static int set_dpa_ipsec_pol_params(struct dpa_ipsec_policy_params *dpa_pol,
 
 	/* Configure IP destination address */
 	if (sel->version == NF_IPV4) {
-		if (nf_dst_addr->addr_type == NF_IPSEC_ADDR_TYPE_SUBNET) {
+		if (sel->dest_ip4.type == NF_IPA_SUBNET) {
 			dpa_dst_addr->addr.ipv4.word =
-				nf_dst_addr->prefixaddr.v4.ipv4addr;
+				sel->dest_ip4.subnet.addr;
 			dpa_pol->dest_prefix_len =
-				nf_dst_addr->prefixaddr.v4.ipv4plen;
+				sel->dest_ip4.subnet.prefix_len;
 		} else {
 			error(0, EINVAL, "Selector address type RANGE is not supported\n");
 			return -EINVAL;
 		}
 	} else {
-		if (nf_src_addr->addr_type == NF_IPSEC_ADDR_TYPE_SUBNET) {
+		if (sel->dest_ip6.type == NF_IPA_SUBNET) {
 			memcpy(dpa_dst_addr->addr.ipv6.word,
-				nf_dst_addr->prefixaddr.v6.ipv6addr.w_addr, 4);
+				sel->dest_ip6.subnet.addr.w_addr, 4);
 			dpa_pol->dest_prefix_len =
-				nf_dst_addr->prefixaddr.v6.ipv6plen;
+				sel->dest_ip6.subnet.prefix_len;
 		} else {
 			error(0, EINVAL, "Selector address type RANGE is not supported\n");
 			return -EINVAL;
@@ -1631,20 +1761,31 @@ static int set_dpa_ipsec_pol_params(struct dpa_ipsec_policy_params *dpa_pol,
 	}
 
 	/* Save protocol number */
-	dpa_pol->protocol = sel->protocol_choice.protocol;
+	dpa_pol->protocol = sel->protocol;
 	dpa_pol->masked_proto = DPA_IPSEC_PROTO_MASK;
 
-	if (sel->protocol_choice.protocol == IPPROTO_ICMP ||
-	    sel->protocol_choice.protocol == IPPROTO_ICMPV6) {
+	if (sel->dest_port.type != NF_L4_PORT_SINGLE ||
+	    sel->src_port.type != NF_L4_PORT_SINGLE) {
+		error(0, EINVAL, "Only selector port type SINGLE is supported\n");
+		return -EINVAL;
+	}
+
+	if (sel->protocol == IPPROTO_ICMP ||
+	    sel->protocol == IPPROTO_ICMPV6) {
 		/* ICMP protocol support */
-		dpa_pol->icmp.icmp_code = sel->protocol_choice.dest_port.start;
-		dpa_pol->icmp.icmp_type = sel->protocol_choice.src_port.start;
+		/*
+		 * XXX: no idea if this is good, I just transformed the old
+		 * code. The convention to set code in destination port and type
+		 * in source port is nowhere to be found.
+		 */
+		dpa_pol->icmp.icmp_code = (uint8_t)sel->dest_port.single.port;
+		dpa_pol->icmp.icmp_type = (uint8_t)sel->src_port.single.port;
 		dpa_pol->icmp.icmp_code_mask = DPA_IPSEC_ICMP_PROTO_MASK;
 		dpa_pol->icmp.icmp_type_mask = DPA_IPSEC_ICMP_PROTO_MASK;
 	} else {
 		/* Layer 4 protocol support */
-		dpa_pol->l4.src_port = sel->protocol_choice.src_port.start;
-		dpa_pol->l4.dest_port = sel->protocol_choice.dest_port.start;
+		dpa_pol->l4.src_port = sel->src_port.single.port;
+		dpa_pol->l4.dest_port = sel->dest_port.single.port;
 		dpa_pol->l4.src_port_mask = DPA_IPSEC_L4_PROTO_MASK;
 		dpa_pol->l4.dest_port_mask = DPA_IPSEC_L4_PROTO_MASK;
 	}
@@ -1722,14 +1863,14 @@ static int add_dpa_ipsec_out_pol(struct nf_ipsec_pol_data *pol,
 	struct nf_ipsec_sa *prm = &nf_sa->sa_params;
 	struct dpa_ipsec_policy_params dpa_pol;
 	bool use_dscp = false, alloc_frag_fmd = false;
-	uint32_t mtu = prm->out.mtu;
+	uint32_t mtu = prm->outb.mtu;
 	int i, ret = 0;
 
 	/* If SA per DSCP enabled, check that this policy can be offloaded */
 	if (pol->n_dscp_ranges > 0) {
 		for (i = 0; i < pol->n_dscp_ranges; i++) {
-			if (prm->out.dscp_start <= pol->dscp_ranges[i].start &&
-			    prm->out.dscp_end >= pol->dscp_ranges[i].end) {
+			if (prm->outb.dscp_start <= pol->dscp_ranges[i].start &&
+			    prm->outb.dscp_end >= pol->dscp_ranges[i].end) {
 				/* We found one policy DSCP range that is a
 				 * superset for the SA DSCP range */
 				use_dscp = true;
@@ -1747,7 +1888,7 @@ static int add_dpa_ipsec_out_pol(struct nf_ipsec_pol_data *pol,
 		return ret;
 
 	if ((pol->spd_params.redside ==
-	     NF_IPSEC_POLICY_REDISIDE_FRAGMENTATION_ENABLE) && mtu > 0) {
+	     NF_IPSEC_POLICY_REDSIDE_FRAGMENTATION_ENABLE) && mtu > 0) {
 		if (nf_sa->frag_hmd == DPA_OFFLD_DESC_NONE) {
 			if (nf_ipsec_data->n_frag_nodes)
 				ret = update_frag_manip(nf_sa, nf_ipsec_data);
@@ -1784,8 +1925,8 @@ static int rm_dpa_ipsec_out_pol(struct nf_ipsec_pol_data *pol,
 		return ret;
 
 	if ((pol->spd_params.redside ==
-	     NF_IPSEC_POLICY_REDISIDE_FRAGMENTATION_ENABLE) &&
-	     sa->sa_params.out.mtu > 0) {
+	     NF_IPSEC_POLICY_REDSIDE_FRAGMENTATION_ENABLE) &&
+	     sa->sa_params.outb.mtu > 0) {
 		dpa_pol.dir_params.type = DPA_IPSEC_POL_DIR_PARAMS_MANIP;
 		dpa_pol.dir_params.manip_desc = sa->frag_hmd;
 	} else
@@ -2096,19 +2237,21 @@ static int del_out_pol_ref_state(struct nf_ipsec_pol_data *pol)
 		link = list_entry(pos, struct nf_ipsec_sa_pol_link, sa_node);
 		sa = nf_ipsec_data->sa_mng[pol->dir][link->sa_id];
 
-		for (i = 0; i < sa->n_sels; i++) {
-			struct nf_ipsec_sa_selector *sel = &sa->sels[i];
+		if (pol->spd_params.action == NF_IPSEC_POLICY_ACTION_IPSEC) {
+			for (i = 0; i < sa->n_sels; i++) {
+				struct nf_ipsec_sa_selector *sel = &sa->sels[i];
 
-			if (sel->policy_id != pol->policy_id)
-				continue;
+				if (sel->policy_id != pol->policy_id)
+					continue;
 
-			idx = find_pol_sel_idx(pol, &sel->selector);
-			if (idx < 0)
-				continue;
+				idx = find_pol_sel_idx(pol, &sel->selector);
+				if (idx < 0)
+					continue;
 
-			ret = rm_dpa_ipsec_out_pol(pol, idx, sa);
-			if (ret < 0)
-				return ret;
+				ret = rm_dpa_ipsec_out_pol(pol, idx, sa);
+				if (ret < 0)
+					return ret;
+			}
 		}
 		remove_link_node(nf_ipsec_data, link);
 	}
@@ -2214,7 +2357,7 @@ static void fetch_pol_params(struct nf_ipsec_pol_data *pol,
 	prm->policy_id = pol->policy_id;
 	prm->action = pol->spd_params.action;
 	prm->status = pol->spd_params.status;
-	prm->policy_position = pol->spd_params.policy_position;
+	prm->position = pol->spd_params.position;
 	prm->relative_policy_id = pol->spd_params.relative_policy_id;
 	prm->n_dscp_ranges = pol->n_dscp_ranges;
 	/* Copy the dscp ranges */
@@ -2224,7 +2367,7 @@ static void fetch_pol_params(struct nf_ipsec_pol_data *pol,
 			sizeof(struct nf_ipsec_policy_rule_dscprange));
 	}
 	prm->redside = pol->spd_params.redside;
-	prm->handle_fragments_opts = pol->spd_params.handle_fragments_opts;
+	prm->fragments_opts = pol->spd_params.fragments_opts;
 	prm->n_selectors = pol->n_sels;
 	/* Copy the selector array */
 	if (prm->selectors) {
@@ -2433,6 +2576,21 @@ int32_t nf_ipsec_sa_mod(
 		return -EINVAL;
 	}
 
+	if (in->flags == NF_IPSEC_SA_MODIFY_LOCAL_GW_INFO) {
+		error(0, EINVAL, "Modify local gateway information is not currently supported\n");
+		return -EINVAL;
+	}
+
+	if (in->flags == NF_IPSEC_SA_MODIFY_PEER_GW_INFO) {
+		error(0, EINVAL, "Modify peer gateway information is not currently supported\n");
+		return -EINVAL;
+	}
+
+	if (in->flags == NF_IPSEC_SA_MODIFY_REPLAY_INFO) {
+		error(0, EINVAL, "Modify replay window information is not currently supported\n");
+		return -EINVAL;
+	}
+
 	if (in->flags == NF_IPSEC_SA_ADD_SEL) {
 		const struct nf_ipsec_selector *sel = &in->selector.selector;
 
@@ -2483,7 +2641,7 @@ int32_t nf_ipsec_sa_mod(
 		return ret;
 	}
 
-	if (in->flags == NF_IPSEC_SA_REPLAY_WINDOW_MODIFY)
+	if (in->flags == NF_IPSEC_SA_MODIFY_REPLAY_INFO)
 		return 0;
 
 	if (in->flags == NF_IPSEC_SA_MODIFY_MTU) {
@@ -2543,8 +2701,8 @@ int32_t nf_ipsec_sa_get(
 		struct nf_ipsec_sa_data *next = NULL;
 
 		/* Find SA node */
-		sa = find_sa_node(nf_ipsec_data, in->dir,
-				in->spi, in->dest_ip, in->protocol);
+		sa = find_sa_node(nf_ipsec_data, in->dir, in->sa_id.spi,
+				in->sa_id.dest_ip, in->sa_id.protocol);
 		if (!sa) {
 			error(0, EINVAL, "SA was not previously added\n");
 			return -EINVAL;
@@ -2560,8 +2718,8 @@ int32_t nf_ipsec_sa_get(
 	}
 	case NF_IPSEC_SA_GET_EXACT:
 		/* Find SA node */
-		sa = find_sa_node(nf_ipsec_data, in->dir,
-				in->spi, in->dest_ip, in->protocol);
+		sa = find_sa_node(nf_ipsec_data, in->dir, in->sa_id.spi,
+				in->sa_id.dest_ip, in->sa_id.protocol);
 		if (!sa) {
 			error(0, EINVAL, "SA was not previously added\n");
 			return -EINVAL;
@@ -2694,6 +2852,17 @@ int32_t nf_ipsec_spd_del(
 	return delete_pol(nf_ipsec_data->pol_mng[dir][in->policy_id]);
 }
 
+int32_t nf_ipsec_spd_mod(
+	nf_ns_id nsid,
+	const struct nf_ipsec_spd_mod_inargs *in,
+	nf_api_control_flags flags,
+	struct nf_ipsec_spd_mod_outargs *out,
+	struct nf_api_resp_args *resp)
+{
+	error(0, EINVAL, "Function nf_ipsec_spd_mod is not currently supported\n");
+	return -EINVAL;
+}
+
 int32_t nf_ipsec_spd_get(
 	nf_ns_id nsid,
 	const struct nf_ipsec_spd_get_inargs *in,
@@ -2704,7 +2873,7 @@ int32_t nf_ipsec_spd_get(
 	struct nf_ipsec_data *nf_ipsec_data = NULL;
 	struct nf_ipsec_pol_data *pol = NULL;
 	struct list_head *plist = NULL;
-	int st, dir;//, ret = 0;
+	int st, dir;
 
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
@@ -2809,58 +2978,69 @@ int32_t nf_ipsec_spd_flush(
 	return 0;
 }
 
-int32_t nf_ipsec_get_capabilities(
+int32_t nf_ipsec_icmp_err_msg_typecode_add(
+	nf_ns_id nsid,
+	const struct nf_ipsec_icmp_err_msg_typecode_add_inargs *in,
 	nf_api_control_flags flags,
-	struct nf_ipsec_get_cap_outargs *out,
+	struct nf_ipsec_icmp_err_msg_typecode_add_outargs *out,
 	struct nf_api_resp_args *resp)
 {
-	struct nf_ipsec_capabilities *cap = &out->cap;
+	error(0, EINVAL, "Function nf_ipsec_icmp_err_msg_typecode_add is not currently supported");
+	return -EINVAL;
+}
 
-	memset(cap, 0, sizeof(*cap));
+int32_t nf_ipsec_icmp_err_msg_typecode_del(
+	nf_ns_id nsid,
+	const struct nf_ipsec_icmp_err_msg_typecode_del_inargs *in,
+	nf_api_control_flags flags,
+	struct nf_ipsec_icmp_err_msg_typecode_del_outargs *out,
+	struct nf_api_resp_args *resp)
+{
+	error(0, EINVAL, "Function nf_ipsec_icmp_err_msg_typecode_del is not currently supported");
+	return -EINVAL;
+}
 
-	cap->sel_store_in_spd = FEATURE_SUPPORTED;
-	cap->ah_protocol = FEATURE_UNSUPPORTED;
-	cap->esp_protocol = FEATURE_SUPPORTED;
-	cap->ipcomp_protocol = FEATURE_UNSUPPORTED;
-	cap->tunnel_mode = FEATURE_SUPPORTED;
-	cap->transport_mode = FEATURE_SUPPORTED;
-	cap->esn = FEATURE_SUPPORTED;
-	cap->multi_sec_protocol = FEATURE_UNSUPPORTED;
-	cap->lifetime_in_sec = FEATURE_UNSUPPORTED;
-	cap->lifetime_in_kbytes = FEATURE_UNSUPPORTED;
-	cap->lifetime_in_packet_cnt = FEATURE_UNSUPPORTED;
-	cap->udp_encap = FEATURE_SUPPORTED;
-	cap->redside_frag = FEATURE_SUPPORTED;
-	cap->peer_gw_adaptation = FEATURE_UNSUPPORTED;
-	cap->local_gw_adaptation = FEATURE_UNSUPPORTED;
-	cap->tfc = FEATURE_UNSUPPORTED;
-	cap->icmp_error_msg_process = FEATURE_UNSUPPORTED;
+int32_t nf_ipsec_icmp_err_msg_typecode_mod(
+	nf_ns_id nsid,
+	const struct nf_ipsec_icmp_err_msg_typecode_mod_inargs *in,
+	nf_api_control_flags flags,
+	struct nf_ipsec_icmp_err_msg_typecode_mod_outargs *out,
+	struct nf_api_resp_args *resp)
+{
+	error(0, EINVAL, "Function nf_ipsec_icmp_err_msg_typecode_mod is not currently supported");
+	return -EINVAL;
+}
 
-	/* Authentication Algorithm Capabilities */
-	cap->auth_algo_cap.md5 = FEATURE_SUPPORTED;
-	cap->auth_algo_cap.sha1 = FEATURE_SUPPORTED;
-	cap->auth_algo_cap.sha2 = FEATURE_SUPPORTED;
-	cap->auth_algo_cap.aes_xcbc = FEATURE_SUPPORTED;
-	cap->auth_algo_cap.none = FEATURE_UNSUPPORTED;
+int32_t nf_ipsec_icmp_err_msg_typecode_get(
+	nf_ns_id nsid,
+	const struct nf_ipsec_icmp_err_msg_typecode_get_inargs *in,
+	nf_api_control_flags flags,
+	struct nf_ipsec_icmp_err_msg_typecode_get_outargs *out,
+	struct nf_api_resp_args *resp)
+{
+	error(0, EINVAL, "Function nf_ipsec_icmp_err_msg_typecode_get is not currently supported");
+	return -EINVAL;
+}
 
-	/* Encryption Algorithm Capabilities */
-	cap->cipher_algo_cap.des = FEATURE_UNSUPPORTED;
-	cap->cipher_algo_cap.des_3 = FEATURE_SUPPORTED;
-	cap->cipher_algo_cap.aes = FEATURE_SUPPORTED;
-	cap->cipher_algo_cap.aes_ctr = FEATURE_SUPPORTED;
-	cap->cipher_algo_cap.null = FEATURE_SUPPORTED;
+int32_t nf_ipsec_set_icmp_err_msg_process_status(
+	nf_ns_id nsid,
+	enum nf_ipsec_icmp_err_msg_process_status_flag status,
+	nf_api_control_flags flags,
+	struct nf_api_resp_args *resp)
+{
+	error(0, EINVAL, "Function nf_ipsec_set_icmp_err_msg_process_status is not currently supported");
+	return -EINVAL;
+}
 
-	/* Combined mode Algorithm Capabilities */
-	cap->comb_algo_cap.aes_ccm = FEATURE_UNSUPPORTED;
-	cap->comb_algo_cap.aes_gcm = FEATURE_UNSUPPORTED;
-	cap->comb_algo_cap.aes_gmac = FEATURE_UNSUPPORTED;
-
-	cap->max_name_spaces = 1;
-	cap->max_tunnels = 1;
-	cap->max_spd_policies = NF_IPSEC_MAX_POLS/NF_IPSEC_DIR_NUM;
-	cap->max_sas =  NF_IPSEC_MAX_SAS/NF_IPSEC_DIR_NUM;
-	cap->max_icmp_policies = 0;
-	return 0;
+int32_t nf_ipsec_global_stats_get(
+	nf_ns_id nsid,
+	const struct nf_ipsec_global_stats_get_inargs *in,
+	nf_api_control_flags flags,
+	struct nf_ipsec_global_stats_get_outargs *out,
+	struct nf_api_resp_args *resp)
+{
+	error(0, EINVAL, "Function nf_ipsec_global_stats_get is not currently supported");
+	return -EINVAL;
 }
 
 int32_t nf_ipsec_encrypt_and_send(
@@ -2947,13 +3127,13 @@ int32_t nf_ipsec_encrypt_and_send(
 
 	phys_addr = bm_buf_addr(&bm_buf);
 	memcpy(__dma_mem_ptov(phys_addr),
-			((struct nf_packet *) in->packet)->data,
-			((struct nf_packet *) in->packet)->length);
+			((struct nf_packet *) in->pkt)->data,
+			((struct nf_packet *) in->pkt)->length);
 
 	memset(&fd, 0, sizeof(fd));
 	qm_fd_addr_set64(&fd, phys_addr);
 	fd.format = qm_fd_contig;
-	fd.length20 = ((struct nf_packet *) in->packet)->length;
+	fd.length20 = ((struct nf_packet *) in->pkt)->length;
 	fd.cmd = 0;
 	fd.offset = 0;
 	fd.bpid = gbl_init->ipsec.bpid;
@@ -2967,4 +3147,102 @@ int32_t nf_ipsec_encrypt_and_send(
 	}
 
 	return 0;
+}
+
+int32_t nf_ipsec_decrypt_and_send(const struct nf_ipsec_decrypt_inject *in)
+{
+	error(0, EINVAL, "Function nf_ipsec_decrypt_and_send is not currently supported");
+	return -EINVAL;
+}
+
+int32_t nf_ipsec_get_capabilities(
+	nf_api_control_flags flags,
+	struct nf_ipsec_cap_get_outargs *out,
+	struct nf_api_resp_args *resp)
+{
+	struct nf_ipsec_capabilities *cap = &out->cap;
+
+	memset(cap, 0, sizeof(*cap));
+
+	cap->sel_store_in_spd = FEATURE_SUPPORTED;
+	cap->ah_protocol = FEATURE_UNSUPPORTED;
+	cap->esp_protocol = FEATURE_SUPPORTED;
+	cap->ipcomp_protocol = FEATURE_UNSUPPORTED;
+	cap->tunnel_mode = FEATURE_SUPPORTED;
+	cap->transport_mode = FEATURE_SUPPORTED;
+	cap->esn = FEATURE_SUPPORTED;
+	cap->multi_sec_protocol = FEATURE_UNSUPPORTED;
+	cap->lifetime_in_sec = FEATURE_UNSUPPORTED;
+	cap->lifetime_in_kbytes = FEATURE_UNSUPPORTED;
+	cap->lifetime_in_packet_cnt = FEATURE_UNSUPPORTED;
+	cap->udp_encap = FEATURE_SUPPORTED;
+	cap->redside_frag = FEATURE_SUPPORTED;
+	cap->peer_gw_adaptation = FEATURE_UNSUPPORTED;
+	cap->local_gw_adaptation = FEATURE_UNSUPPORTED;
+	cap->tfc = FEATURE_UNSUPPORTED;
+	cap->icmp_error_msg_process = FEATURE_UNSUPPORTED;
+
+	/* Authentication Algorithm Capabilities */
+	cap->auth_algo_cap.md5 = FEATURE_SUPPORTED;
+	cap->auth_algo_cap.sha1 = FEATURE_SUPPORTED;
+	cap->auth_algo_cap.sha2 = FEATURE_SUPPORTED;
+	cap->auth_algo_cap.aes_xcbc = FEATURE_SUPPORTED;
+	cap->auth_algo_cap.none = FEATURE_UNSUPPORTED;
+
+	/* Encryption Algorithm Capabilities */
+	cap->cipher_algo_cap.des = FEATURE_UNSUPPORTED;
+	cap->cipher_algo_cap.des_3 = FEATURE_SUPPORTED;
+	cap->cipher_algo_cap.aes = FEATURE_SUPPORTED;
+	cap->cipher_algo_cap.aes_ctr = FEATURE_SUPPORTED;
+	cap->cipher_algo_cap.null = FEATURE_SUPPORTED;
+
+	/* Combined mode Algorithm Capabilities */
+	cap->comb_algo_cap.aes_ccm = FEATURE_UNSUPPORTED;
+	cap->comb_algo_cap.aes_gcm = FEATURE_UNSUPPORTED;
+	cap->comb_algo_cap.aes_gmac = FEATURE_UNSUPPORTED;
+
+	cap->max_name_spaces = 1;
+	cap->max_tunnels = 1;
+	cap->max_spd_policies = NF_IPSEC_MAX_POLS/NF_IPSEC_DIR_NUM;
+	cap->max_sas =  NF_IPSEC_MAX_SAS/NF_IPSEC_DIR_NUM;
+	cap->max_icmp_policies = 0;
+	return 0;
+}
+
+int32_t nf_ipsec_api_get_version(char *version)
+{
+	error(0, EINVAL, "Function nf_ipsec_api_get_version is not currently supported");
+	return -EINVAL;
+}
+
+int32_t nf_ipsec_dp_set_status(
+	nf_ns_id nsid,
+	enum nf_ipsec_status_flag status,
+	nf_api_control_flags flags,
+	struct nf_api_resp_args *resp)
+{
+	error(0, EINVAL, "Function nf_ipsec_dp_set_status is not currently supported");
+	return -EINVAL;
+}
+
+int32_t nf_ipsec_dp_revalidate(
+	nf_ns_id nsid,
+	nf_api_control_flags flags,
+	struct nf_api_resp_args *resp)
+{
+	error(0, EINVAL, "Function nf_ipsec_dp_revalidate is not currently supported");
+	return -EINVAL;
+}
+
+int32_t nf_ipsec_notification_hooks_register(
+		const struct nf_ipsec_notification_hooks *hooks)
+{
+	error(0, EINVAL, "Function nf_ipsec_notification_hooks_register is not currently supported");
+	return -EINVAL;
+}
+
+int32_t nf_ipsec_notification_hooks_deregister(void)
+{
+	error(0, EINVAL, "Function nf_ipsec_notification_hooks_deregister is not currently supported");
+	return -EINVAL;
 }

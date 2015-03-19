@@ -140,8 +140,8 @@ struct nfapi_mfc_t {
 	/* maximum number of members in a group */
 	int maxvif;
 	union {
-		struct nf_ip4_mcfwd_mfentry  mfc_res;
-		struct nf_ip6_mcfwd_mfentry mfc_res6;
+		struct nf_ip4_mcfwd_route  mfc_res;
+		struct nf_ip6_mcfwd_route mfc_res6;
 	};
 };
 

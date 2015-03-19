@@ -44,6 +44,7 @@
 
 #include "fsl_dpa_offload.h"
 
+#include "nfinfra_nfapi.h"
 #include "ip4_fwd_nfapi.h"
 #include "ip6_fwd_nfapi.h"
 #include "neigh_nfapi.h"
@@ -86,7 +87,7 @@ struct nfapi_fib_table_t {
 	/* route table family */
 	int family;
 	/* route table number */
-	uint32_t rt_table_no;
+	uint16_t rt_table_no;
 	/* next fib table in a fib hash bucket */
 	struct nfapi_fib_table_t *next;
 	/* list head of the routes entries corresponding to the fib table */
@@ -123,7 +124,7 @@ bool nfapi_rt_remove(struct nfapi_fib_table_t *fib_table,
 
 struct nfapi_fib_table_t *nfapi_fib_table_lookup(
 					struct nfapi_fib_hash_table_t *hash_tbl,
-					const uint32_t *key,
+					const void *key,
 					uint32_t keylen);
 
 struct nfapi_fib_table_t *nfapi_fib_table_create(
@@ -132,7 +133,7 @@ struct nfapi_fib_table_t *nfapi_fib_table_create(
 struct nfapi_fib_table_t *nfapi_fib_table_init(
 				    struct nfapi_fib_hash_table_t *hash_tbl,
 				    struct nfapi_fib_table_t *fib_table,
-				    const uint32_t *key, int family);
+				    const uint16_t *key, int family);
 
 bool nfapi_fib_table_add(struct nfapi_fib_hash_table_t *hash_tbl,
 		   struct nfapi_fib_table_t *new_fib_table);
@@ -147,7 +148,7 @@ struct nfapi_rt_id *nfapi_rt_lookup(struct nfapi_fib_table_t *fib_table,
 void nfapi_rt_free(struct nfapi_rt_id *rt_id, void *ctxt);
 
 bool nfapi_fib_table_remove(struct nfapi_fib_hash_table_t *hash_tbl,
-			   const uint32_t *key,
+			   const void *key,
 			   uint32_t keylen);
 
 #endif

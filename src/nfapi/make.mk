@@ -35,7 +35,7 @@ LIBS += $(LIBNAME)
 
 OBJS = arp_nfapi.o fib_nfapi.o ip4_fwd_nfapi.o ip4_mcfwd_nfapi.o \
        ip6_fwd_nfapi.o ip6_mcfwd_nfapi.o ipmr_nfapi.o ipsec_nfapi.o nd_nfapi.o \
-       neigh_nfapi.o rule_nfapi.o
+       neigh_nfapi.o rule_nfapi.o utils_nfapi.o ipsec_init.o ipfwd_init.o
 
 ABS_OBJS := $(foreach obj,$(OBJS),$(addprefix $(SRC_SUBDIR)/,$(obj)))
 OBJECTS += $(ABS_OBJS)

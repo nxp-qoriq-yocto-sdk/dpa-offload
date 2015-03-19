@@ -676,7 +676,7 @@ out:
 
 static int __nf_add_mfc(struct dpa_offload_lookup_key *dpa_key,
 			struct __nf_mc_out *out_params,
-			const struct nf_ip4_mcfwd_mfentry *mfc_res,
+			const struct nf_ip4_mcfwd_route *mfc_res,
 			struct dpa_cls_tbl_enq_action_desc *member)
 {
 	struct dpa_cls_mcast_group_params group_params;
@@ -816,7 +816,7 @@ static inline int __update_group_vif(struct vif_device *vif_dev,
 /* recreate a multicast replicator group if the number of vifs changes */
 static inline int __resize_mfc_group(struct nfapi_mfc_t *mfc,
 				     struct dpa_cls_tbl_enq_action_desc *member,
-				     const struct nf_ip4_mcfwd_mfentry *mfc_res,
+				     const struct nf_ip4_mcfwd_route *mfc_res,
 				     struct dpa_offload_lookup_key *dpa_key,
 				     int maxvif)
 {
@@ -930,7 +930,7 @@ static inline int __resize_mfc_group(struct nfapi_mfc_t *mfc,
 
 static int __nf_update_mfc(struct nfapi_mfc_t *mfc,
 			struct dpa_offload_lookup_key *dpa_key,
-			const struct nf_ip4_mcfwd_mfentry *mfc_res,
+			const struct nf_ip4_mcfwd_route *mfc_res,
 			struct dpa_cls_tbl_enq_action_desc *member)
 {
 	struct nfapi_mr_table_t *mr_tbl;
@@ -1295,7 +1295,7 @@ int32_t nf_ip4_mcfwd_group_get(nf_ns_id nsid,
 		return -ENOTSUP;
 	}
 
-	memcpy(&out->ip4addr_entry, &iif_group->iif_group,
+	memcpy(&out->ip4_mcfwd_entry, &iif_group->iif_group,
 		sizeof(struct nf_ip4_mcfwd_group));
 	return 0;
 out:
@@ -1393,10 +1393,10 @@ out:
 }
 
 
-int32_t nf_ip4_mcfwd_mfe_add(nf_ns_id nsid,
-	const struct nf_ip4_mcfwd_mfentry *ip4_mcfwd_entry,
+int32_t nf_ip4_mcfwd_route_add(nf_ns_id nsid,
+	const struct nf_ip4_mcfwd_route *ip4_mcfwd_entry,
 	nf_api_control_flags flags,
-	struct nf_ip4_mcfwd_mfe_outargs *ip4_mcfwd_outargs,
+	struct nf_ip4_mcfwd_route_outargs *ip4_mcfwd_outargs,
 	struct nf_api_resp_args  *ip4_mcfwd_respargs)
 {
 	struct nfapi_mr_table_t *mr_tbl;
@@ -1516,10 +1516,10 @@ int32_t nf_ip4_mcfwd_mfe_add(nf_ns_id nsid,
 	return 0;
 }
 
-int32_t nf_ip4_mcfwd_mfe_delete(nf_ns_id nsid,
-		const struct nf_ip4_mcfwd_mfentry_del *ip4_mcfwd_entry,
+int32_t nf_ip4_mcfwd_route_delete(nf_ns_id nsid,
+		const struct nf_ip4_mcfwd_route_del *ip4_mcfwd_entry,
 		nf_api_control_flags flags,
-		struct nf_ip4_mcfwd_mfe_outargs *ip4_mcfwd_outargs,
+		struct nf_ip4_mcfwd_route_outargs *ip4_mcfwd_outargs,
 		struct nf_api_resp_args  *ip4_mcfwd_respargs)
 {
 	struct nfapi_mr_table_t *mr_tbl;
@@ -1571,10 +1571,10 @@ int32_t nf_ip4_mcfwd_mfe_delete(nf_ns_id nsid,
 	return 0;
 }
 
-int32_t  nf_ip4_mcfwd_mfe_get(nf_ns_id nsid,
-	const struct nf_ip4_mcfwd_mfe_get_inargs *in,
+int32_t  nf_ip4_mcfwd_route_get(nf_ns_id nsid,
+	const struct nf_ip4_mcfwd_route_get_inargs *in,
 	nf_api_control_flags flags,
-	struct nf_ip4_mcfwd_mfe_get_outargs *out,
+	struct nf_ip4_mcfwd_route_get_outargs *out,
 	struct nf_api_resp_args *resp)
 {
 	struct nfapi_mr_table_t *mr_tbl;

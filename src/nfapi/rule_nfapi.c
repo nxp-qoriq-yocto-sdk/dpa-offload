@@ -32,6 +32,7 @@
 
 #include <mem_cache.h>
 
+#include "nfinfra_nfapi.h"
 #include "rule_nfapi.h"
 
 int nfapi_rule_table_init(struct nfapi_rule_table_t *table)
@@ -107,7 +108,7 @@ static inline uint32_t compute_rule_hash(const void *key, uint32_t key_len)
 
 static struct nfapi_rule_bucket_t
 *__rule_find_bucket(struct nfapi_rule_table_t *rt,
-		     const uint32_t *key, uint32_t keylen)
+		     const void *key, uint32_t keylen)
 {
 	uint32_t hash;
 	if (!rt)
@@ -121,7 +122,7 @@ static struct nfapi_rule_bucket_t
 }
 
 static struct nfapi_rule_t **__rule_find(struct nfapi_rule_bucket_t *bucket,
-				     const uint32_t *key, uint32_t keylen)
+				     const void *key, uint32_t keylen)
 {
 	struct nfapi_rule_t **nptr;
 	struct nfapi_rule_t *rule;
@@ -132,7 +133,7 @@ static struct nfapi_rule_t **__rule_find(struct nfapi_rule_bucket_t *bucket,
 
 	rule = *nptr;
 	while (rule != NULL) {
-		if (rule->prio == *key)
+		if (rule->prio == *(uint32_t*)key)
 			break;
 		else
 			nptr = &(rule->next);
@@ -192,7 +193,7 @@ static bool __rule_add(struct nfapi_rule_table_t *rt,
 }
 
 static struct nfapi_rule_t *__rule_lookup(struct nfapi_rule_bucket_t *bucket,
-				      const uint32_t *key, uint32_t keylen)
+				      const void *key, uint32_t keylen)
 {
 	struct nfapi_rule_t *rule;
 	struct nfapi_rule_t **cur_ptr;
@@ -255,7 +256,7 @@ bool nfapi_rule_remove(struct nfapi_rule_table_t *rt,
 }
 
 struct nfapi_rule_t *nfapi_rule_lookup(struct nfapi_rule_table_t *rt,
-					const uint32_t *key,
+					const void *key,
 					uint32_t keylen)
 {
 	struct nfapi_rule_bucket_t *bucket;

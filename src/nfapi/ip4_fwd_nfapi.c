@@ -8,6 +8,7 @@
 #include "ip4_fwd_nfapi.h"
 #include "fib_nfapi.h"
 #include "rule_nfapi.h"
+#include "utils_nfapi.h"
 
 /* IPv4 route key : IP Dest + TOS (IP Source always masked)*/
 static inline void mk_route_key(uint8_t *rt_key, uint8_t *rt_mask, int keysize,
@@ -23,9 +24,9 @@ static inline void mk_route_key(uint8_t *rt_key, uint8_t *rt_mask, int keysize,
 	dst += sizeof(rt_entry->dst_addr);
 	memcpy(dst, &rt_entry->tos, sizeof(rt_entry->tos));
 
-	dst = rt_mask + sizeof(rt_entry->dst_mask);
-	memcpy(dst, &rt_entry->dst_mask, sizeof(rt_entry->dst_mask));
-	dst += sizeof(rt_entry->dst_mask);
+	dst = rt_mask + sizeof(nf_ipv4_addr);
+	set_ip_addr_mask(dst, rt_entry->prefix_length);
+	dst += sizeof(nf_ipv4_addr);
 	if (rt_entry->tos)
 		*dst = 0xff;
 	dpa_key->byte = rt_key;
@@ -57,13 +58,11 @@ static inline void mk_rule_key(uint8_t *rl_key, uint8_t *rl_mask, int keysize,
 		       sizeof(pbr_rule_param->tos));
 
 		dst = rl_mask;
-		memcpy(dst, &pbr_rule_param->src_mask,
-		       sizeof(pbr_rule_param->src_mask));
-		dst += sizeof(pbr_rule_param->src_mask);
-		memcpy(dst, &pbr_rule_param->dst_mask,
-		       sizeof(pbr_rule_param->dst_mask));
+		set_ip_addr_mask(dst, pbr_rule_param->srcip_prefix);
+		dst += sizeof(nf_ipv4_addr);
+		set_ip_addr_mask(dst, pbr_rule_param->dstip_prefix);
 
-		dst += sizeof(pbr_rule_param->dst_mask);
+		dst += sizeof(nf_ipv4_addr);
 		if (pbr_rule_param->tos)
 			*dst = 0xff;
 	} else {
@@ -80,13 +79,11 @@ static inline void mk_rule_key(uint8_t *rl_key, uint8_t *rl_mask, int keysize,
 		       sizeof(pbr_rule_param->tos));
 
 		dst = rl_mask;
-		memcpy(dst, &pbr_rule_param->src_mask,
-		       sizeof(pbr_rule_param->src_mask));
-		dst += sizeof(pbr_rule_param->src_mask);
-		memcpy(dst, &pbr_rule_param->dst_mask,
-		       sizeof(pbr_rule_param->dst_mask));
+		set_ip_addr_mask(dst, pbr_rule_param->srcip_prefix);
+		dst += sizeof(nf_ipv4_addr);
+		set_ip_addr_mask(dst, pbr_rule_param->dstip_prefix);
 
-		dst += sizeof(pbr_rule_param->dst_mask);
+		dst += sizeof(nf_ipv4_addr);
 		if (pbr_rule_param->tos)
 			*dst = 0xff;
 	}
@@ -111,10 +108,10 @@ static inline int __nf_add_route(struct dpa_offload_lookup_key *dpa_key,
 	act->enq_params.hmd = DPA_OFFLD_INVALID_OBJECT_ID;
 	act->enq_params.override_fqid = false;
 
-	for (i = 0; i < gbl_nf_ipfwd_data->ip4fwd_route_nf_res->num_td; i++) {
-		rt_table_no = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].action.rt_table_no;
+	for (i = 0; i < gbl_nf_ipfwd_data->ip4_route_nf_res->num_td; i++) {
+		rt_table_no = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].rt_table_no;
 		if (table_id == rt_table_no) {
-			td = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].td;
+			td = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].td;
 			if (neigh->tx_fqid)
 				act->enq_params.override_fqid = true;
 			act->enq_params.hmd = neigh->hmd[0];
@@ -134,8 +131,8 @@ static inline int __nf_add_route(struct dpa_offload_lookup_key *dpa_key,
 
 out:
 	for (j = 0; j < i; j++) {
-		td = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[j].td;
-		rt_table_no = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].action.rt_table_no;
+		td = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[j].td;
+		rt_table_no = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].rt_table_no;
 		if (table_id == rt_table_no)
 			dpa_classif_table_delete_entry_by_ref(td, *id);
 	}
@@ -146,9 +143,9 @@ out:
 static inline int __nf_remove_route(int id, int table_id)
 {
 	int i, td, ret = 0, rt_table_no;
-	for (i = 0; i < gbl_nf_ipfwd_data->ip4fwd_route_nf_res->num_td; i++) {
-		td = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].td;
-		rt_table_no = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].action.rt_table_no;
+	for (i = 0; i < gbl_nf_ipfwd_data->ip4_route_nf_res->num_td; i++) {
+		td = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].td;
+		rt_table_no = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].rt_table_no;
 		if (rt_table_no == table_id)
 			ret += dpa_classif_table_delete_entry_by_ref(td, id);
 	}
@@ -168,11 +165,11 @@ static inline int set_rule_action(int table_id,
 	memset(act, 0, sizeof(*act));
 	act->enable_statistics = false;
 	act->enq_params.hmd = DPA_OFFLD_INVALID_OBJECT_ID;
-	for (i = 0; i < gbl_nf_ipfwd_data->ip4fwd_route_nf_res->num_td; i++) {
-		rt_table_no = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].action.rt_table_no;
-		act_type = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].action.type;
-		td = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].td;
-		fqid = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].action.fq.fqid;
+	for (i = 0; i < gbl_nf_ipfwd_data->ip4_route_nf_res->num_td; i++) {
+		rt_table_no = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].rt_table_no;
+		act_type = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].action.type;
+		td = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].td;
+		fqid = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].action.fq.fqid;
 		if (rt_table_no == table_id) {
 			if (act_type == DPA_CLS_TBL_ACTION_ENQ) {
 				act->type = act_type;
@@ -204,15 +201,15 @@ static inline int __nf_add_rule(struct dpa_offload_lookup_key *dpa_key,
 	if (ret < 0)
 		return ret;
 
-	for (i = 0; i < gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->num_td; i++) {
+	for (i = 0; i < gbl_nf_ipfwd_data->ip4_rule_nf_res->num_td; i++) {
 		/* if input interface was specified add entry
 		 only in the corresponding table */
 		if (in_ifid &&
-		    gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->nf_cc[i].ifid != in_ifid)
+		    gbl_nf_ipfwd_data->ip4_rule_nf_res->nf_cc[i].ifid != in_ifid)
 			continue;
 
 		entry = true;
-		td = gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->nf_cc[i].td;
+		td = gbl_nf_ipfwd_data->ip4_rule_nf_res->nf_cc[i].td;
 		ret = dpa_classif_table_insert_entry(td, dpa_key,
 						     act, prio, id);
 		if (ret < 0)
@@ -226,9 +223,9 @@ static inline int __nf_add_rule(struct dpa_offload_lookup_key *dpa_key,
 out:
 	for (j = 0; j < i; j++) {
 		if (in_ifid &&
-		    gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->nf_cc[j].ifid != in_ifid)
+		    gbl_nf_ipfwd_data->ip4_rule_nf_res->nf_cc[j].ifid != in_ifid)
 			continue;
-		td = gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->nf_cc[j].td;
+		td = gbl_nf_ipfwd_data->ip4_rule_nf_res->nf_cc[j].td;
 		dpa_classif_table_delete_entry_by_ref(td, *id);
 	}
 	return ret;
@@ -242,11 +239,11 @@ static inline int __nf_remove_rule(struct dpa_offload_lookup_key *dpa_key,
 {
 	int i, td, ret = 0;
 
-	for (i = 0; i < gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->num_td; i++) {
+	for (i = 0; i < gbl_nf_ipfwd_data->ip4_rule_nf_res->num_td; i++) {
 		if (in_ifid &&
-		    gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->nf_cc[i].ifid != in_ifid)
+		    gbl_nf_ipfwd_data->ip4_rule_nf_res->nf_cc[i].ifid != in_ifid)
 			continue;
-		td = gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->nf_cc[i].td;
+		td = gbl_nf_ipfwd_data->ip4_rule_nf_res->nf_cc[i].td;
 		ret += dpa_classif_table_delete_entry_by_key(td, dpa_key);
 	}
 	return ret;
@@ -266,8 +263,8 @@ int32_t nf_ip4_fwd_route_add(nf_ns_id ns_id,
 	uint32_t nh_addr;
 	struct dpa_offload_lookup_key dpa_key;
 	struct dpa_cls_tbl_action def_action;
-	uint8_t rt_key[gbl_nf_ipfwd_data->ip4fwd_route_nf_res->keysize],
-	     rt_mask[gbl_nf_ipfwd_data->ip4fwd_route_nf_res->keysize];
+	uint8_t rt_key[gbl_nf_ipfwd_data->ip4_route_nf_res->keysize],
+	     rt_mask[gbl_nf_ipfwd_data->ip4_route_nf_res->keysize];
 	struct nfapi_rt_id *rt_id;
 	struct nfapi_fib_table_t *fib_table;
 	uint32_t neigh_key[5];
@@ -277,7 +274,7 @@ int32_t nf_ip4_fwd_route_add(nf_ns_id ns_id,
 	neigh_tbl = gbl_nf_ipfwd_data->neigh_tbl;
 
 	memset(neigh_key, 0, sizeof(neigh_key));
-	mk_route_key(rt_key, rt_mask, gbl_nf_ipfwd_data->ip4fwd_route_nf_res->keysize,
+	mk_route_key(rt_key, rt_mask, gbl_nf_ipfwd_data->ip4_route_nf_res->keysize,
 		     new_rt_entry_data, &dpa_key);
 
 	/* try to bind route to ARP  */
@@ -539,10 +536,10 @@ static int __modify_route(struct nfapi_neigh_t *neigh,
 	mod_params.type = DPA_CLS_TBL_MODIFY_ACTION;
 	mod_params.action = &act;
 
-	for (i = 0; i < gbl_nf_ipfwd_data->ip4fwd_route_nf_res->num_td; i++) {
-		table_id = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].action.rt_table_no;
+	for (i = 0; i < gbl_nf_ipfwd_data->ip4_route_nf_res->num_td; i++) {
+		table_id = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].rt_table_no;
 		if (table_id == rt_table_no) {
-			td = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].td;
+			td = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].td;
 			ret += dpa_classif_table_modify_entry_by_ref(td, rt_id,
 								   &mod_params);
 			entry = true;
@@ -666,15 +663,15 @@ int32_t nf_ip4_fwd_pbr_rule_add(nf_ns_id ns_id,
 	struct nfapi_rule_table_t *rule_tbl;
 	struct dpa_offload_lookup_key dpa_key;
 	struct dpa_cls_tbl_action def_action;
-	uint8_t rl_key[gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->keysize],
-		rl_mask[gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->keysize];
+	uint8_t rl_key[gbl_nf_ipfwd_data->ip4_rule_nf_res->keysize],
+		rl_mask[gbl_nf_ipfwd_data->ip4_rule_nf_res->keysize];
 	struct nfapi_rule_t *rule;
 	uint32_t priority;
 	int id, ret;
 
 	rule_tbl = gbl_nf_ipfwd_data->rule_tbl;
 
-	mk_rule_key(rl_key, rl_mask, gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->keysize,
+	mk_rule_key(rl_key, rl_mask, gbl_nf_ipfwd_data->ip4_rule_nf_res->keysize,
 		    new_pbr_rule, &dpa_key, true);
 	/* insert the rule in the rule ccnode */
 	ret = __nf_add_rule(&dpa_key, &def_action, new_pbr_rule->priority, &id,
@@ -712,8 +709,8 @@ int32_t nf_ip4_fwd_pbr_rule_delete(nf_ns_id ns_id,
 {
 	struct dpa_offload_lookup_key dpa_key;
 	struct nfapi_rule_table_t *rule_tbl;
-	uint8_t rl_key[gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->keysize],
-		rl_mask[gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->keysize];
+	uint8_t rl_key[gbl_nf_ipfwd_data->ip4_rule_nf_res->keysize],
+		rl_mask[gbl_nf_ipfwd_data->ip4_rule_nf_res->keysize];
 	struct nfapi_rule_t * rule;
 	uint32_t priority;
 	int ret;
@@ -728,7 +725,7 @@ int32_t nf_ip4_fwd_pbr_rule_delete(nf_ns_id ns_id,
 		return -ENOENT;
 
 	mk_rule_key(rl_key, rl_mask,
-			gbl_nf_ipfwd_data->ip4fwd_rule_nf_res->keysize,
+			gbl_nf_ipfwd_data->ip4_rule_nf_res->keysize,
 			pbr_rule, &dpa_key, false);
 	/* remove the rule form the rule cccnode */
 	ret = __nf_remove_rule(&dpa_key, pbr_rule->in_ifid);
@@ -744,9 +741,9 @@ int32_t nf_ip4_fwd_pbr_rule_delete(nf_ns_id ns_id,
 }
 
 int32_t nf_ip4_fwd_pbr_get(nf_ns_id nsid,
-		      const struct nf_ip4_fwd_pbr_get_inargs *in,
+		      const struct nf_ip4_fwd_pbr_rule_get_inargs *in,
 		      nf_api_control_flags flags,
-		      struct nf_ip4_fwd_pbr_get_outargs *out,
+		      struct nf_ip4_fwd_pbr_rule_get_outargs *out,
 		      struct nf_api_resp_args *resp)
 {
 	struct nfapi_rule_t *rule = NULL;
@@ -768,8 +765,8 @@ int32_t nf_ip4_fwd_pbr_get(nf_ns_id nsid,
 	case NF_IP4_FWD_PBR_GET_NEXT:
 		/* find the rule with given priority */
 		rule = nfapi_rule_lookup(&rule_tbl[IPv4],
-					&in->priority,
-					sizeof(in->priority));
+					&in->pbr_rule_params.priority,
+					sizeof(in->pbr_rule_params.priority));
 
 
 		if (!rule)
@@ -786,8 +783,8 @@ int32_t nf_ip4_fwd_pbr_get(nf_ns_id nsid,
 	case NF_IP4_FWD_PBR_GET_EXACT:
 		/* find the rule with given priority */
 		rule = nfapi_rule_lookup(&rule_tbl[IPv4],
-					&in->priority,
-					sizeof(in->priority));
+					&in->pbr_rule_params.priority,
+					sizeof(in->pbr_rule_params.priority));
 
 
 		if (!rule)

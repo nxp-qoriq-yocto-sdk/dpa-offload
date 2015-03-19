@@ -10,6 +10,7 @@
 
 #include "fsl_dpa_offload.h"
 
+#include "nfinfra_nfapi.h"
 #include "ip4_fwd_nfapi.h"
 #include "ip6_fwd_nfapi.h"
 

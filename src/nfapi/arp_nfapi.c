@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <sched.h>
 #include <stdint.h>
 #include <net/if.h>
 #include <errno.h>
@@ -8,7 +9,6 @@
 #include "fsl_dpa_classifier.h"
 
 #include "init_nfapi.h"
-#include <sched.h>
 #include "ipfwd.h"
 #include "neigh_nfapi.h"
 #include "arp_nfapi.h"
@@ -113,8 +113,8 @@ static int update_neigh_rt_list(struct nfapi_neigh_t *neigh,
 	mod_params.type = DPA_CLS_TBL_MODIFY_ACTION;
 	mod_params.action = &def_action;
 	for (curr = neigh->rt_list_head; curr; curr = curr->next) {
-		for (i = 0; i < gbl_nf_ipfwd_data->ip4fwd_route_nf_res->num_td; i++) {
-			td = gbl_nf_ipfwd_data->ip4fwd_route_nf_res->nf_cc[i].td;
+		for (i = 0; i < gbl_nf_ipfwd_data->ip4_route_nf_res->num_td; i++) {
+			td = gbl_nf_ipfwd_data->ip4_route_nf_res->nf_cc[i].td;
 			ret = dpa_classif_table_modify_entry_by_ref(td,
 								  curr->rt_id,
 								  &mod_params);
@@ -185,7 +185,7 @@ static inline void ifs_add_tail(int ifid, struct nfapi_neigh_t *neigh)
 	}
 }
 
-int32_t nf_arp_add_entry(
+int32_t nf_arp_entry_add(
 		nf_ns_id      nsid,
 		const struct nf_arp_entry *in,
 		nf_api_control_flags flags,
@@ -212,12 +212,12 @@ int32_t nf_arp_add_entry(
 	memset(neigh_key, 0 , sizeof(neigh_key));
 	proto_len = sizeof(struct in_addr);
 
-	memcpy(neigh_key, &in->ip_address, proto_len);
+	memcpy(neigh_key, &in->arp_id.ip_address, proto_len);
 	idx = proto_len / sizeof(neigh_key[0]);
-	memcpy(neigh_key + idx, &in->ifid, sizeof(in->ifid));
+	memcpy(neigh_key + idx, &in->arp_id.ifid, sizeof(in->arp_id.ifid));
 
 	memset(ifname, 0, sizeof(ifname));
-	if (!if_indextoname(in->ifid, ifname))
+	if (!if_indextoname(in->arp_id.ifid, ifname))
 		return -errno;
 	ret = get_mac_addr(ifname, &saddr);
 	if (ret)
@@ -241,13 +241,13 @@ int32_t nf_arp_add_entry(
 			 * add the neighbor to the eth interface list
 			 * identified by ifid
 			 */
-			ifs_add_tail(in->ifid, neigh);
+			ifs_add_tail(in->arp_id.ifid, neigh);
 			/* add the neigh to the neigh table list */
 			list_add_tail(&neigh->neigh_tbl_node,
 				      &neigh_tbl[IPv4].neigh_list);
 			neigh->refcnt++;
 			memcpy(&neigh->eth_addr, in->mac_addr, ETH_ALEN);
-			neigh->ifid = in->ifid;
+			neigh->ifid = in->arp_id.ifid;
 			neigh->state = in->state;
 			ret = update_neigh_rt_list(neigh, tx_fqid, fwd_hmd,
 						   ttl_hmd);
@@ -276,7 +276,7 @@ int32_t nf_arp_add_entry(
 	neigh->hmd[1] = ttl_hmd;
 	neigh->tx_fqid = tx_fqid;
 	memcpy(&neigh->eth_addr, in->mac_addr, ETH_ALEN);
-	neigh->ifid = in->ifid;
+	neigh->ifid = in->arp_id.ifid;
 	neigh->state = in->state;
 	if (!nfapi_neigh_add(&neigh_tbl[IPv4], neigh)) {
 		neigh_free(neigh, &neigh_tbl[IPv4]);
@@ -286,7 +286,7 @@ int32_t nf_arp_add_entry(
 	neigh->refcnt++;
 
 	/* add the neighbor to the eth interface list identified by ifid */
-	ifs_add_tail(in->ifid, neigh);
+	ifs_add_tail(in->arp_id.ifid, neigh);
 	/* add the neigh to the neigh table list */
 	list_add_tail(&neigh->neigh_tbl_node, &neigh_tbl[IPv4].neigh_list);
 
@@ -297,9 +297,9 @@ out:
 	return ret;
 }
 
-int32_t nf_arp_del_entry(
+int32_t nf_arp_entry_del(
 		nf_ns_id      nsid,
-		const struct nf_arp_entry_del *in,
+		const struct nf_arp_entry_identifier *in,
 		nf_api_control_flags flags,
 		struct nf_arp_outargs *out,
 		struct nf_api_resp_args *resp)
@@ -347,9 +347,13 @@ int32_t nf_arp_del_entry(
 	return ret;
 }
 
+/*
+ * TODO: This function is not exported by NFAPI v0.5, but should be.
+ * Start a discussion to include it in next version.
+ */
 int32_t nf_arp_modify_entry(
 	nf_ns_id      nsid,
-	struct nf_arp_entry_mod *in,
+	struct nf_arp_entry *in,
 	nf_api_control_flags flags,
 	struct nf_arp_outargs *out,
 	struct nf_api_resp_args *resp)
@@ -369,9 +373,9 @@ int32_t nf_arp_modify_entry(
 	memset(neigh_key, 0 , sizeof(neigh_key));
 	proto_len = sizeof(struct in_addr);
 
-	memcpy(neigh_key, &in->ip_address, proto_len);
+	memcpy(neigh_key, &in->arp_id.ip_address, proto_len);
 	idx = proto_len / sizeof(neigh_key[0]);
-	memcpy(neigh_key + idx, &in->ifid, sizeof(in->ifid));
+	memcpy(neigh_key + idx, &in->arp_id.ifid, sizeof(in->arp_id.ifid));
 
 	neigh = nfapi_neigh_lookup(&neigh_tbl[IPv4], neigh_key,
 				   sizeof(neigh_key));
@@ -379,7 +383,7 @@ int32_t nf_arp_modify_entry(
 		return -ENOENT;
 
 	memset(ifname, 0, sizeof(ifname));
-	if (!if_indextoname(in->ifid, ifname))
+	if (!if_indextoname(in->arp_id.ifid, ifname))
 		return -errno;
 
 	ret = get_mac_addr(ifname, &saddr);
@@ -398,12 +402,12 @@ int32_t nf_arp_modify_entry(
 	neigh->tx_fqid = tx_fqid;
 	memcpy(&neigh->eth_addr, in->mac_addr, ETH_ALEN);
 	neigh->state = in->state;
-	neigh->ifid = in->ifid;
+	neigh->ifid = in->arp_id.ifid;
 
 	return 0;
 }
 
-int32_t nf_arp_flush_entries(nf_ns_id nsid,
+int32_t nf_arp_entry_flush(nf_ns_id nsid,
 			    const struct nf_arp_entry *in,
 			    nf_api_control_flags flags,
 			    struct nf_arp_outargs *out,
@@ -420,12 +424,12 @@ int32_t nf_arp_flush_entries(nf_ns_id nsid,
 	eth_if = gbl_nf_ipfwd_data->eth_if;
 	num_ifs = sizeof(gbl_nf_ipfwd_data->eth_if) / sizeof(eth_if[0]);
 
-	if ((in->ifid >= num_ifs) || (!eth_if[in->ifid].init) ||
-	      list_empty(&eth_if[in->ifid].if_list_head))
+	if ((in->arp_id.ifid >= num_ifs) || (!eth_if[in->arp_id.ifid].init) ||
+	      list_empty(&eth_if[in->arp_id.ifid].if_list_head))
 		return -ENOENT;
 
 	list_for_each_entry_safe(neigh, n,
-				 &eth_if[in->ifid].if_list_head, neigh_node) {
+				 &eth_if[in->arp_id.ifid].if_list_head, neigh_node) {
 		ret |= update_neigh_rt_list(neigh, 0,
 					   DPA_OFFLD_INVALID_OBJECT_ID,
 					   DPA_OFFLD_INVALID_OBJECT_ID);
@@ -448,7 +452,7 @@ int32_t nf_arp_flush_entries(nf_ns_id nsid,
 			memcpy(neigh_key, &neigh->ip_address,
 			       neigh->nt->proto_len);
 			idx = neigh->nt->proto_len / sizeof(neigh_key[0]);
-			memcpy(neigh_key + idx, &in->ifid, sizeof(in->ifid));
+			memcpy(neigh_key + idx, &in->arp_id.ifid, sizeof(in->arp_id.ifid));
 			nfapi_neigh_remove(neigh->nt, neigh_key,
 						  sizeof(neigh_key));
 		}
@@ -479,14 +483,14 @@ int32_t nf_arp_entry_get(nf_ns_id nsid,
 	memcpy(neigh_key + idx, &in->ifid, sizeof(in->ifid));
 
 	switch(in->operation) {
-	case NF_ARP_GET_FIRST_RECORD:
+	case NF_ARP_GET_FIRST:
 		if (list_empty(&neigh_tbl[IPv4].neigh_list))
 			return -ENOENT;
 
 		neigh = list_entry(neigh_tbl[IPv4].neigh_list.next,
 				   struct nfapi_neigh_t, neigh_tbl_node);
 		break;
-	case NF_ARP_GET_FIRST_NEXT:
+	case NF_ARP_GET_NEXT:
 		neigh = nfapi_neigh_lookup(&neigh_tbl[IPv4], neigh_key,
 					   sizeof(neigh_key));
 		if (!neigh)
@@ -509,9 +513,9 @@ int32_t nf_arp_entry_get(nf_ns_id nsid,
 	}
 
 	memcpy(out->arp_entry.mac_addr, &neigh->eth_addr, ETH_ALEN);
-	memcpy(&out->arp_entry.ip_address, &neigh->ip_address,
+	memcpy(&out->arp_entry.arp_id.ip_address, &neigh->ip_address,
 		sizeof(struct in_addr));
-	memcpy(&out->arp_entry.ifid, &neigh->ifid, sizeof(neigh->ifid));
+	memcpy(&out->arp_entry.arp_id.ifid, &neigh->ifid, sizeof(neigh->ifid));
 	memcpy(&out->arp_entry.state, &neigh->state, sizeof(neigh->state));
 	return 0;
 

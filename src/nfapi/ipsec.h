@@ -192,6 +192,10 @@
 	else								\
 		memcpy(_dpa_ipaddr.addr.ipv6.word, _nf_ipaddr.ipv6.w_addr, 4);
 
+#define IP_ADDR_LEN(_version)						\
+	((_version == NF_IPV4) ?					\
+	 (IP_ADDR_LEN_T_IPv4) : (NF_IPV6_ADDRU8_LEN))
+
 #define POL_STATE_INVALID  0x01 /* Policy is invalid */
 #define POL_STATE_INIT	   0x02 /* Policy is initialized */
 #define POL_STATE_REF	   0x04 /* Policy is referenced by an SA selector */
