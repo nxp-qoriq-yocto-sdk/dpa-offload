@@ -1412,7 +1412,7 @@ struct nf_ipsec_global_stats {
 		/**< Processed Inbound packets */
 	uint64_t inb_pkts_to_apply_sec;
 		/**< Received Inbound packets to apply security */
-	uint64_t inb_pkts_sec_applied;
+	uint64_t inb_sec_applied_pkts;
 		/**< Inbound packets applied security */
 	uint64_t inb_processed_bytes;
 		/**< Number of bytes processed in the inbound processing */
