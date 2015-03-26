@@ -216,6 +216,12 @@ struct nf_ipsec_data {
 	bool used_frags[NF_IPSEC_MAX_SAS]; /* Fragmentation nodes 'in-use' */
 	struct qman_fq local_fq; /* Queue handling object for manual enqueues */
 	struct bman_pool *bm_pool; /* Buffer pool object for manual enqueues */
+
+	/* Global statistics for IPSec manually incremented */
+	struct {
+		uint64_t encrypt_and_send;
+		uint64_t decrypt_and_send;
+	} stats;
 };
 
 struct nf_ipsec_sa_data {

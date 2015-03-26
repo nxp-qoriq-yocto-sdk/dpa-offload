@@ -3039,8 +3039,97 @@ int32_t nf_ipsec_global_stats_get(
 	struct nf_ipsec_global_stats_get_outargs *out,
 	struct nf_api_resp_args *resp)
 {
-	error(0, EINVAL, "Function nf_ipsec_global_stats_get is not currently supported");
-	return -EINVAL;
+	struct nf_ipsec_data *nf_ipsec_data = NULL;
+	struct nf_ipsec_sa_data *sa = NULL;
+	struct nf_ipsec_pol_data *pol = NULL;
+	struct dpa_ipsec_sa_stats sa_stats;
+	struct dpa_cls_tbl_entry_stats tbl_entry_stats;
+
+	uint8_t pol_state;
+	int i, j, ret, td;
+
+	if (flags == NF_API_CTRL_FLAG_ASYNC) {
+		error(0, EINVAL, "Asynchronous call is not supported");
+		return -EINVAL;
+	}
+
+	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
+		error(0, EINVAL, "Call without response is not supported");
+		return -EINVAL;
+	}
+
+	nf_ipsec_data = gbl_nf_ipsec_data;
+
+	memset(out, 0, sizeof(*out));
+	out->stats.outb_received_pkts	= nf_ipsec_data->stats.encrypt_and_send;
+	out->stats.outb_processed_pkts	= nf_ipsec_data->stats.encrypt_and_send;
+	out->stats.inb_received_pkts	= nf_ipsec_data->stats.decrypt_and_send;
+	out->stats.inb_processed_pkts	= nf_ipsec_data->stats.decrypt_and_send;
+
+	/* Get statistics from OUTBOUND SA. */
+	for (i = 0; i < NF_IPSEC_MAX_SAS; i++) {
+		sa = nf_ipsec_data->sa_mng[NF_IPSEC_DIR_OUTBOUND][i];
+		if (!sa) {
+			continue;
+		}
+		memset(&sa_stats, 0, sizeof(sa_stats));
+		ret = dpa_ipsec_sa_get_stats(sa->sa_id, &sa_stats);
+		if (ret) {
+			error(0, -ret, "Failed to get statistics for OUTB SA");
+			return ret;
+		}
+		out->stats.outb_received_pkts += sa_stats.input_packets;
+		out->stats.outb_sec_applied_pkts += sa_stats.packets_count;
+	}
+
+	/* Get statistics from INBOUND SA. */
+	for (i = 0; i < NF_IPSEC_MAX_SAS; i++) {
+		sa = nf_ipsec_data->sa_mng[NF_IPSEC_DIR_INBOUND][i];
+		if (!sa)
+			continue;
+		memset(&sa_stats, 0, sizeof(sa_stats));
+		ret = dpa_ipsec_sa_get_stats(sa->sa_id, &sa_stats);
+		if (ret) {
+			error(0, -ret, "Failed to get statistics for INB SA");
+			return ret;
+		}
+		out->stats.inb_received_pkts += sa_stats.input_packets;
+		out->stats.inb_sec_applied_pkts += sa_stats.packets_count;
+	}
+
+	/* Get statistics from OUTBOUND policies. */
+	for (i = 0; i < NF_IPSEC_MAX_POLS; i++) {
+		pol = nf_ipsec_data->pol_mng[NF_IPSEC_DIR_OUTBOUND][i];
+		pol_state = nf_ipsec_data->pol_state[NF_IPSEC_DIR_OUTBOUND][i];
+		if (!pol || (pol_state & POL_STATE_INVALID))
+			continue;
+
+		for (j = 0; j < pol->n_sels; j++) {
+			if (pol->entry_ids[j] == DPA_OFFLD_DESC_NONE)
+				continue;
+
+			td = get_out_pol_table(nf_ipsec_data, &pol->sels[j]);
+			if (td < 0)
+				continue;
+
+			ret = dpa_classif_table_get_entry_stats_by_ref(
+					td,
+					pol->entry_ids[j],
+					&tbl_entry_stats);
+			if (ret) {
+				error(0, -ret, "Failed to get statistics for policy with id %" PRIu32,
+						pol->policy_id);
+				return ret;
+			}
+			out->stats.outb_processed_pkts += tbl_entry_stats.pkts;
+			if (pol->spd_params.action ==
+					NF_IPSEC_POLICY_ACTION_IPSEC)
+				out->stats.outb_pkts_to_apply_sec +=
+					tbl_entry_stats.pkts;
+		}
+	}
+
+	return 0;
 }
 
 int32_t nf_ipsec_encrypt_and_send(
