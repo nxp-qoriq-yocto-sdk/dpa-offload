@@ -92,39 +92,39 @@ static int check_sa_params(const struct nf_ipsec_sa_add_inargs *in)
 	}
 
 	if (!nf_sa->crypto_params.auth_key) {
-		error(0, EINVAL, "Invalid authentication key\n");
+		error(0, EINVAL, "Invalid authentication key");
 		return -EINVAL;
 	}
 
 	if (nf_sa->crypto_params.auth_key_len_bits < 8 ||
 	    nf_sa->crypto_params.auth_key_len_bits > max_bits) {
-		error(0, EINVAL, "Authentication key bits (%d) must be in range (8 - %d)\n",
+		error(0, EINVAL, "Authentication key bits (%d) must be in range (8 - %d)",
 			nf_sa->crypto_params.auth_key_len_bits, max_bits);
 		return -EINVAL;
 	}
 
 	if (!nf_sa->crypto_params.cipher_key) {
-		error(0, EINVAL, "Invalid ciphey key\n");
+		error(0, EINVAL, "Invalid ciphey key");
 		return -EINVAL;
 	}
 
 	if (nf_sa->crypto_params.cipher_key_len_bits < 8 ||
 	    nf_sa->crypto_params.cipher_key_len_bits > max_bits) {
-		error(0, EINVAL, "Cipher key bits (%d) must be in range (8 - %d)\n",
+		error(0, EINVAL, "Cipher key bits (%d) must be in range (8 - %d)",
 			nf_sa->crypto_params.cipher_key_len_bits, max_bits);
 		return -EINVAL;
 	}
 
 	if (in->dir == NF_IPSEC_OUTBOUND) {
 		if (nf_sa->outb.mtu > MAX_VAL_16BITS) {
-			error(0, EINVAL, "Value of MTU bigger than %d is not supported\n",
+			error(0, EINVAL, "Value of MTU bigger than %d is not supported",
 					MAX_VAL_16BITS);
 			return -EINVAL;
 		}
 
 		if (nf_sa->outb.iv && (nf_sa->outb.iv_len_bits > max_bits ||
 				!nf_sa->outb.iv_len_bits)) {
-			error(0, EINVAL, "Initialization vector bits (%d) must be in range (8 - %d)\n",
+			error(0, EINVAL, "Initialization vector bits (%d) must be in range (8 - %d)",
 					nf_sa->outb.iv_len_bits, max_bits);
 			return -EINVAL;
 		}
@@ -145,13 +145,13 @@ static int check_sa_params(const struct nf_ipsec_sa_add_inargs *in)
 	}
 
 	if (nf_sa->n_selectors > NF_IPSEC_MAX_SEL) {
-		error(0, EINVAL, "Exceeded maximum number of selectors %d\n",
+		error(0, EINVAL, "Exceeded maximum number of selectors %d",
 			NF_IPSEC_MAX_SEL);
 		return -EINVAL;
 	}
 
 	if (nf_sa->n_selectors > 0 && !nf_sa->selectors) {
-		error(0, EINVAL, "Pointer to array of selectors cannot be NULL\n");
+		error(0, EINVAL, "Pointer to array of selectors cannot be NULL");
 		return -EINVAL;
 	}
 
@@ -209,35 +209,35 @@ static int check_policy_params(const struct nf_ipsec_spd_add_inargs *in)
 
 	if ((in->dir == NF_IPSEC_INBOUND) &&
 	    (spd_params->action != NF_IPSEC_POLICY_ACTION_IPSEC)) {
-		error(0, EINVAL, "For INBOUND direction only policy action IPSEC is supported\n");
+		error(0, EINVAL, "For INBOUND direction only policy action IPSEC is supported");
 		return -EINVAL;
 	}
 
 	if (spd_params->status == NF_IPSEC_POLICY_STATUS_DISABLE) {
-		error(0, EINVAL, "Policy in disable mode is not currently supported\n");
+		error(0, EINVAL, "Policy in disable mode is not currently supported");
 		return -EINVAL;
 	}
 
 	if (spd_params->n_selectors > NF_IPSEC_MAX_SEL) {
-		error(0, EINVAL, "Exceeded maximum number of selectors %d\n",
+		error(0, EINVAL, "Exceeded maximum number of selectors %d",
 			NF_IPSEC_MAX_SEL);
 		return -EINVAL;
 	}
 
 	if (spd_params->n_selectors > 0 && !spd_params->selectors) {
-		error(0, EINVAL, "Number of selectors(%d) bigger than 0, pointer to array of selectors NULL\n",
+		error(0, EINVAL, "Number of selectors(%d) bigger than 0, pointer to array of selectors NULL",
 				spd_params->n_selectors);
 		return -EINVAL;
 	}
 
 	if (spd_params->n_dscp_ranges > NF_IPSEC_MAX_DSCP) {
-		error(0, EINVAL, "Exceeded maximum number of DSCP ranges %d\n",
+		error(0, EINVAL, "Exceeded maximum number of DSCP ranges %d",
 			NF_IPSEC_MAX_DSCP);
 		return -EINVAL;
 	}
 
 	if (spd_params->n_dscp_ranges > 0 && !spd_params->dscp_ranges) {
-		error(0, EINVAL, "Number of dscp ranges(%d) bigger than 0, pointer to array of dscp ranges NULL\n",
+		error(0, EINVAL, "Number of dscp ranges(%d) bigger than 0, pointer to array of dscp ranges NULL",
 			spd_params->n_dscp_ranges);
 		return -EINVAL;
 	}
@@ -291,7 +291,7 @@ static int check_policy_params(const struct nf_ipsec_spd_add_inargs *in)
 		if (sel->protocol != NF_IPSEC_SEL_PROTOCOL_ANY &&
 		   (sel->src_port.type != NF_L4_PORT_SINGLE ||
 		    sel->dest_port.type != NF_L4_PORT_SINGLE)) {
-			error(0, EINVAL, "Only port type SINGLE is not supported");
+			error(0, EINVAL, "Only port type SINGLE is supported");
 			return -EINVAL;
 		}
 	}
@@ -309,7 +309,7 @@ static void *create_sa_node(struct nf_ipsec_data *nf_ipsec_data,
 	/* Create SA internal structure and store it */
 	sa = mem_cache_alloc(nf_ipsec_data->sa_nodes);
 	if (!sa) {
-		error(0, ENOMEM, "Could not allocate memory for SA control block\n");
+		error(0, ENOMEM, "Could not allocate memory for SA control block");
 		return NULL;
 	}
 	memset(sa, 0, sizeof(*sa));
@@ -372,7 +372,7 @@ static int remove_sa_node(struct nf_ipsec_data *nf_ipsec_data,
 	/* First try and remove SA from DPA IPSec */
 	ret = dpa_ipsec_remove_sa(sa->sa_id);
 	if (ret < 0) {
-		error(0, -ret, "Unable to remove DPA IPSec SA\n");
+		error(0, -ret, "Unable to remove DPA IPSec SA");
 		return ret;
 	}
 
@@ -396,7 +396,7 @@ static void *create_pol_node(struct nf_ipsec_data *nf_ipsec_data,
 	/* Get memory for policy control block */
 	policy = mem_cache_alloc(nf_ipsec_data->pol_nodes);
 	if (!policy) {
-		error(0, ENOMEM, "Could not allocate memory for policy control block\n");
+		error(0, ENOMEM, "Could not allocate memory for policy control block");
 		return NULL;
 	}
 	memset(policy, 0, sizeof(*policy));
@@ -443,7 +443,7 @@ static void *create_link_node(struct nf_ipsec_sa_data *sa,
 			break;
 	}
 	if (!link) {
-		error(0, ENOMEM, "Could not allocate memory for link node\n");
+		error(0, ENOMEM, "Could not allocate memory for link node");
 		return NULL;
 	}
 	memset(link, 0, sizeof(*link));
@@ -479,7 +479,7 @@ static inline int addr_match_ipv4(struct nf_ipv4_addr_info *a1,
 	if (a1->type != a2->type)
 		return false;
 	if (a1->type != NF_IPA_SUBNET) {
-		error(0, EINVAL, "Only addres type SUBNET is supported\n");
+		error(0, EINVAL, "Only addres type SUBNET is supported");
 		return false;
 	}
 	if (a1->subnet.addr != a2->subnet.addr)
@@ -496,7 +496,7 @@ static inline int addr_match_ipv6(struct nf_ipv6_addr_info *a1,
 	if (a1->type != a2->type)
 		return false;
 	if (a1->type != NF_IPA_SUBNET) {
-		error(0, EINVAL, "Only addres type SUBNET is supported\n");
+		error(0, EINVAL, "Only addres type SUBNET is supported");
 		return false;
 	}
 	if (memcmp(&a1->subnet.addr.b_addr, &a2->subnet.addr.b_addr,
@@ -514,7 +514,7 @@ static inline int port_match(struct nf_l4_port *p1,
 	if (p1->type != p2->type)
 		return false;
 	if (p1->type != NF_L4_PORT_SINGLE) {
-		error(0, EINVAL, "Only port type SINGLE is supported\n");
+		error(0, EINVAL, "Only port type SINGLE is supported");
 		return false;
 	}
 	if (p1->single.port != p2->single.port)
@@ -544,7 +544,7 @@ static bool selector_match(struct nf_ipsec_selector *psel,
 			return false;
 		break;
 	default:
-		error(0, EINVAL, "Invalid IP version\n");
+		error(0, EINVAL, "Invalid IP version");
 		return false;
 	}
 
@@ -617,7 +617,7 @@ static int get_out_pol_table(struct nf_ipsec_data *nf_ipsec_data,
 	 * provided
 	 */
 	if (td == DPA_OFFLD_DESC_NONE) {
-		error(0, EBADF, "No suitable table found for this policy type!\n");
+		error(0, EBADF, "No suitable table found for this policy type!");
 		return -EBADF;
 	}
 	return td;
@@ -751,13 +751,13 @@ static int fill_table_key(int td, struct nf_ipsec_selector *sel,
 	/* get table params (including maximum key size) */
 	err = dpa_classif_table_get_params(td, &tbl_params);
 	if (err < 0) {
-		error(0, EINVAL, "Could not retrieve table maximum key size!\n");
+		error(0, EINVAL, "Could not retrieve table maximum key size!");
 		return -EINVAL;
 	}
 	tbl_key_size = TABLE_KEY_SIZE(tbl_params);
 
 	if (tbl_key_size < off) {
-		error(0, EINVAL, "Policy key is greater than maximum table key size\n");
+		error(0, EINVAL, "Policy key is greater than maximum table key size");
 		return -EINVAL;
 	}
 
@@ -803,7 +803,7 @@ static int create_out_tbl_key(struct nf_ipsec_data *nf_ipsec_data,
 	 * provided
 	 */
 	if (*table == DPA_OFFLD_DESC_NONE) {
-		error(0, EBADF, "No suitable table found for this policy type!\n");
+		error(0, EBADF, "No suitable table found for this policy type!");
 		return -EBADF;
 	}
 
@@ -861,7 +861,7 @@ static int update_frag_manip(struct nf_ipsec_sa_data *sa,
 			break;
 	}
 	if (i == nf_ipsec_data->n_frag_nodes) {
-		error(0, EINVAL, "No more free fragmentation manipulation node\n");
+		error(0, EINVAL, "No more free fragmentation manipulation node");
 		return -EINVAL;
 	}
 
@@ -894,7 +894,7 @@ static int release_sa_frag_hmd(struct nf_ipsec_sa_data *sa,
 
 	ret = dpa_classif_free_hm(sa->frag_hmd);
 	if (ret < 0) {
-		error(0, -ret, "Unable release header manipulation object %d\n", sa->frag_hmd);
+		error(0, -ret, "Unable release header manipulation object %d", sa->frag_hmd);
 		return ret;
 	}
 	nf_ipsec_data->used_frags[sa->frag_node_idx] = false;
@@ -909,12 +909,12 @@ static int modify_out_sa_mtu(struct nf_ipsec_data *nf_ipsec_data,
 	int ret = 0;
 
 	if (sa->dir != NF_IPSEC_DIR_OUTBOUND) {
-		error(0, EINVAL, "Modify MTU is supported only on OUTBOUND SA\n");
+		error(0, EINVAL, "Modify MTU is supported only on OUTBOUND SA");
 		return -EINVAL;
 	}
 
 	if (mtu == 0 || mtu > MAX_VAL_16BITS) {
-		error(0, EINVAL, "MTU value(%d) must be greater than 0 and less than %d\n",
+		error(0, EINVAL, "MTU value(%d) must be greater than 0 and less than %d",
 			mtu, MAX_VAL_16BITS);
 		return -EINVAL;
 	}
@@ -950,7 +950,7 @@ static int set_dpa_ipsec_sa_crypto_params(struct nf_ipsec_sa_crypto_params *nf,
 					 struct dpa_ipsec_sa_crypto_params *dpa)
 {
 	if (nf->auth_algo == NF_IPSEC_AUTH_ALG_NONE) {
-		error(0, EINVAL, "Combined mode algorithms are not supported\n");
+		error(0, EINVAL, "Combined mode algorithms are not supported");
 		return -EINVAL;
 	}
 	dpa->cipher_key = nf->cipher_key;
@@ -959,7 +959,7 @@ static int set_dpa_ipsec_sa_crypto_params(struct nf_ipsec_sa_crypto_params *nf,
 	dpa->auth_key_len = nf->auth_key_len_bits/BITS_IN_BYTE;
 	dpa->alg_suite = IPSEC_ALGS(nf->cipher_algo, nf->auth_algo);
 	if (dpa->alg_suite == IPSEC_ENC_ATH_ALG_INVALID_SELECTION) {
-		error(0, EINVAL, "Invalid combination of encryption(%d) and authentication(%d) algorithms\n",
+		error(0, EINVAL, "Invalid combination of encryption(%d) and authentication(%d) algorithms",
 			nf->cipher_algo, nf->auth_algo);
 		return -EINVAL;
 	}
@@ -1329,7 +1329,7 @@ static int delete_sa_selector(struct nf_ipsec_data *nf_ipsec_data,
 		}
 	}
 	if (pos < 0) {
-		error(0, EINVAL, "Selector is not part of SA array of selectors\n");
+		error(0, EINVAL, "Selector is not part of SA array of selectors");
 		return -EINVAL;
 	}
 
@@ -1464,7 +1464,7 @@ static int rm_sa_resources(struct nf_ipsec_data *nf_ipsec_data,
 	/* This SA doesn't reference any policy anymore, go and remove it */
 	ret = remove_sa_node(nf_ipsec_data, sa);
 	if (ret < 0) {
-		error(0, -ret, "Unable to remove SA\n");
+		error(0, -ret, "Unable to remove SA");
 		return ret;
 	}
 
@@ -1540,7 +1540,7 @@ static void set_pol_position_begin(struct list_head *pol_list,
 		/* Add policy before first node from the list */
 		f = list_entry(pol_list->next, struct nf_ipsec_pol_data, node);
 		if (f->prio == PRIO_LOW_VAL)
-			error(0, 0, "warn: no more space, policy added with same priority as FIRST entry in the SPD\n");
+			error(0, 0, "warn: no more space, policy added with same priority as FIRST entry in the SPD");
 		pol->prio = (f->prio - PRIO_LOW_VAL)/2;
 		list_add(&pol->node, pol_list);
 	}
@@ -1554,7 +1554,7 @@ static int set_pol_position_before(struct list_head *pol_list,
 	struct nf_ipsec_pol_data *rel = NULL, *p = NULL;
 
 	if (!nf_ipsec_data->pol_mng[pol->dir][prm->relative_policy_id]) {
-		error(0, EINVAL, "Policy with id %d was not created\n",
+		error(0, EINVAL, "Policy with id %d was not created",
 				prm->relative_policy_id);
 		return -EINVAL;
 	}
@@ -1563,13 +1563,13 @@ static int set_pol_position_before(struct list_head *pol_list,
 	if (rel->node.prev == pol_list) {
 		/* This is the first node from the list */
 		if (rel->prio == PRIO_LOW_VAL)
-			error(0, 0, "warn: no more space, policy added with same priority as FIRST entry in the SPD\n");
+			error(0, 0, "warn: no more space, policy added with same priority as FIRST entry in the SPD");
 		pol->prio = (rel->prio - PRIO_LOW_VAL)/2;
 	} else {
 		/* Get node before this relative policy */
 		p = list_entry(rel->node.prev, struct nf_ipsec_pol_data, node);
 		if (rel->prio == p->prio)
-			error(0, 0, "warn: no more space, policy added with same priority as relative policy ID\n");
+			error(0, 0, "warn: no more space, policy added with same priority as relative policy ID");
 		pol->prio = p->prio + (rel->prio - p->prio)/2;
 	}
 	list_add_before(&pol->node, &rel->node);
@@ -1584,7 +1584,7 @@ static int set_pol_position_after(struct list_head *pol_list,
 	struct nf_ipsec_pol_data *rel = NULL, *n = NULL;
 
 	if (!nf_ipsec_data->pol_mng[pol->dir][prm->relative_policy_id]) {
-		error(0, EINVAL, "Policy with id %d does not exist\n",
+		error(0, EINVAL, "Policy with id %d does not exist",
 			prm->relative_policy_id);
 		return -EINVAL;
 	}
@@ -1593,13 +1593,13 @@ static int set_pol_position_after(struct list_head *pol_list,
 	if (rel->node.next == pol_list) {
 		/* This becomes the last node from the list */
 		if (rel->prio == PRIO_HIGH_VAL)
-			error(0, 0, "warn: no more space, policy added with same priority as LAST entry in the SPD\n");
+			error(0, 0, "warn: no more space, policy added with same priority as LAST entry in the SPD");
 		pol->prio = rel->prio + (PRIO_HIGH_VAL - rel->prio)/2;
 	} else {
 		/* Get node after this relative policy */
 		n = list_entry(rel->node.next, struct nf_ipsec_pol_data, node);
 		if (rel->prio == n->prio)
-			error(0, 0, "warn: no more space, policy added with same priority as relative policy ID\n");
+			error(0, 0, "warn: no more space, policy added with same priority as relative policy ID");
 		pol->prio = rel->prio + (n->prio - rel->prio)/2;
 	}
 	list_add_after(&pol->node, &rel->node);
@@ -1630,7 +1630,7 @@ static void set_pol_position_end(struct list_head *pol_list,
 				i = list_entry(&def_pol->node.prev,
 					struct nf_ipsec_pol_data, node);
 				if (i->prio == PRIO_HIGH_VAL)
-					error(0, 0, "warn: no more space, policy added with same priority as LAST entry in the SPD\n");
+					error(0, 0, "warn: no more space, policy added with same priority as LAST entry in the SPD");
 				pol->prio = i->prio +
 					(PRIO_HIGH_VAL - i->prio)/2;
 				list_add_before(&pol->node, &def_pol->node);
@@ -1640,7 +1640,7 @@ static void set_pol_position_end(struct list_head *pol_list,
 			i = list_entry(pol_list->prev,
 				       struct nf_ipsec_pol_data, node);
 			if (i->prio == PRIO_HIGH_VAL)
-				error(0, 0, "warn: no more space, policy added with same priority as LAST entry in the SPD\n");
+				error(0, 0, "warn: no more space, policy added with same priority as LAST entry in the SPD");
 			pol->prio = i->prio + (PRIO_HIGH_VAL - i->prio)/2;
 			list_add_after(&pol->node, &i->node);
 		}
@@ -1722,7 +1722,7 @@ static int set_dpa_ipsec_pol_params(struct dpa_ipsec_policy_params *dpa_pol,
 			dpa_pol->src_prefix_len =
 				sel->src_ip4.subnet.prefix_len;
 		} else {
-			error(0, EINVAL, "Selector address type RANGE is not supported\n");
+			error(0, EINVAL, "Selector address type RANGE is not supported");
 			return -EINVAL;
 		}
 	} else {
@@ -1732,7 +1732,7 @@ static int set_dpa_ipsec_pol_params(struct dpa_ipsec_policy_params *dpa_pol,
 			dpa_pol->src_prefix_len =
 			       sel->src_ip6.subnet.prefix_len;
 		} else {
-			error(0, EINVAL, "Selector address type RANGE is not supported\n");
+			error(0, EINVAL, "Selector address type RANGE is not supported");
 			return -EINVAL;
 		}
 	}
@@ -1745,7 +1745,7 @@ static int set_dpa_ipsec_pol_params(struct dpa_ipsec_policy_params *dpa_pol,
 			dpa_pol->dest_prefix_len =
 				sel->dest_ip4.subnet.prefix_len;
 		} else {
-			error(0, EINVAL, "Selector address type RANGE is not supported\n");
+			error(0, EINVAL, "Selector address type RANGE is not supported");
 			return -EINVAL;
 		}
 	} else {
@@ -1755,7 +1755,7 @@ static int set_dpa_ipsec_pol_params(struct dpa_ipsec_policy_params *dpa_pol,
 			dpa_pol->dest_prefix_len =
 				sel->dest_ip6.subnet.prefix_len;
 		} else {
-			error(0, EINVAL, "Selector address type RANGE is not supported\n");
+			error(0, EINVAL, "Selector address type RANGE is not supported");
 			return -EINVAL;
 		}
 	}
@@ -1766,7 +1766,7 @@ static int set_dpa_ipsec_pol_params(struct dpa_ipsec_policy_params *dpa_pol,
 
 	if (sel->dest_port.type != NF_L4_PORT_SINGLE ||
 	    sel->src_port.type != NF_L4_PORT_SINGLE) {
-		error(0, EINVAL, "Only selector port type SINGLE is supported\n");
+		error(0, EINVAL, "Only selector port type SINGLE is supported");
 		return -EINVAL;
 	}
 
@@ -1878,7 +1878,7 @@ static int add_dpa_ipsec_out_pol(struct nf_ipsec_pol_data *pol,
 			}
 		}
 		if (!use_dscp) {
-			error(0, EINVAL, "Policy range of DSCP values is not a superset of SA DSCP range\n");
+			error(0, EINVAL, "Policy range of DSCP values is not a superset of SA DSCP range");
 			return -EINVAL;
 		}
 	}
@@ -1950,7 +1950,7 @@ static int insert_out_pol_ipsec(struct nf_ipsec_pol_data *pol, int idx)
 	key.mask = mask_data;
 	ret = create_out_tbl_key(nf_ipsec_data, &pol->sels[idx], &tbl, &key);
 	if (ret < 0) {
-		error(0, -ret, "Could not create key for OUTBOUND policy table!\n");
+		error(0, -ret, "Could not create key for OUTBOUND policy table!");
 		return ret;
 	}
 
@@ -1964,7 +1964,7 @@ static int insert_out_pol_ipsec(struct nf_ipsec_pol_data *pol, int idx)
 				      0,
 				      &pol->entry_ids[idx]);
 	if (ret < 0) {
-		error(0, -ret, "Could not add key in exact match table for ipsec action!\n");
+		error(0, -ret, "Could not add key in exact match table for ipsec action!");
 		return ret;
 	}
 	return 0;
@@ -1985,7 +1985,7 @@ static int insert_out_pol_discard(struct nf_ipsec_pol_data *pol)
 		ret = create_out_tbl_key(pol->nf_ipsec_data,
 					 &pol->sels[i], &tbl, &key);
 		if (ret < 0) {
-			error(0, -ret, "Could not create key for OUTBOUND policy table!\n");
+			error(0, -ret, "Could not create key for OUTBOUND policy table!");
 			return ret;
 		}
 
@@ -1995,7 +1995,7 @@ static int insert_out_pol_discard(struct nf_ipsec_pol_data *pol)
 		ret = dpa_classif_table_insert_entry(tbl, &key, &action,
 						     0, &pol->entry_ids[i]);
 		if (ret < 0) {
-			error(0, -ret, "Could not add key in exact match table!\n");
+			error(0, -ret, "Could not add key in exact match table!");
 			return ret;
 		}
 	}
@@ -2021,7 +2021,7 @@ static int insert_out_pol_bypass(struct nf_ipsec_pol_data *pol)
 		ret = create_out_tbl_key(pol->nf_ipsec_data,
 					 &pol->sels[i], &tbl, &key);
 		if (ret < 0) {
-			error(0, -ret, "Could not create key for OUTBOUND policy table!\n");
+			error(0, -ret, "Could not create key for OUTBOUND policy table!");
 			return ret;
 		}
 
@@ -2034,7 +2034,7 @@ static int insert_out_pol_bypass(struct nf_ipsec_pol_data *pol)
 		ret = dpa_classif_table_insert_entry(tbl, &key, &action,
 						     0, &pol->entry_ids[i]);
 		if (ret < 0) {
-			error(0, -ret, "Could not add key in exact match table!\n");
+			error(0, -ret, "Could not add key in exact match table!");
 			return ret;
 		}
 	}
@@ -2054,7 +2054,7 @@ static int delete_out_pol(struct nf_ipsec_pol_data *pol, int idx)
 	/* Remove policy */
 	ret = dpa_classif_table_delete_entry_by_ref(td, pol->entry_ids[idx]);
 	if (ret < 0) {
-		error(0, -ret, "Could not remove key for OUTBOUND policy table!\n");
+		error(0, -ret, "Could not remove key for OUTBOUND policy table!");
 		return ret;
 	}
 	pol->entry_ids[idx] = DPA_OFFLD_DESC_NONE;
@@ -2113,7 +2113,7 @@ static int add_pol_init_state(struct nf_ipsec_data *nf_ipsec_data,
 		}
 		break;
 	default:
-		error(0, EINVAL, "Invalid policy action for policy %d\n",
+		error(0, EINVAL, "Invalid policy action for policy %d",
 				policy_id);
 		return -EINVAL;
 	}
@@ -2308,7 +2308,7 @@ static int add_pol_ref_state(struct nf_ipsec_data *nf_ipsec_data,
 			ret = add_out_pol_ref_state(pol);
 			break;
 		default:
-			error(0, EINVAL, "Invalid policy action for policy %d\n",
+			error(0, EINVAL, "Invalid policy action for policy %d",
 					pol->policy_id);
 			return -EINVAL;
 		}
@@ -2344,7 +2344,7 @@ static int delete_pol(struct nf_ipsec_pol_data *pol)
 		*st = POL_STATE_REF;
 		break;
 	default:
-		error(0, EINVAL, "Policy with id %d was not previously added\n",
+		error(0, EINVAL, "Policy with id %d was not previously added",
 				pol->policy_id);
 		return -EINVAL;
 	}
@@ -2395,12 +2395,12 @@ int32_t nf_ipsec_sa_add(
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
-		error(0, EINVAL, "Asynchronous call is not currently supported\n");
+		error(0, EINVAL, "Asynchronous call is not currently supported");
 		return -EINVAL;
 	}
 
 	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
-		error(0, EINVAL, "Call without response is not currently supported\n");
+		error(0, EINVAL, "Call without response is not currently supported");
 		return -EINVAL;
 	}
 
@@ -2415,7 +2415,7 @@ int32_t nf_ipsec_sa_add(
 			in->sa_params->te_addr.dest_ip,
 			in->sa_params->protocol);
 	if (sa) {
-		error(0, EINVAL, "SA was previously added\n");
+		error(0, EINVAL, "SA was previously added");
 		return -EINVAL;
 	}
 
@@ -2437,7 +2437,7 @@ int32_t nf_ipsec_sa_add(
 	} else if (nf_sa->protocol == AH_PROTOCOL_NUMBER) {
 		dpa_sa.sa_proto = DPA_IPSEC_SA_PROTO_AH;
 	} else {
-		error(0, EINVAL, "Invalid SA protocol %d\n", nf_sa->protocol);
+		error(0, EINVAL, "Invalid SA protocol %d", nf_sa->protocol);
 		return -EINVAL;
 	}
 
@@ -2453,7 +2453,7 @@ int32_t nf_ipsec_sa_add(
 		dpa_sa.sa_dir = DPA_IPSEC_INBOUND;
 		ret = add_dpa_ipsec_in_sa(nsid, nf_sa, &dpa_sa, &sa_id);
 		if (ret < 0) {
-			error(0, -ret, "Unable to add inbound DPA IPSec SA\n");
+			error(0, -ret, "Unable to add inbound DPA IPSec SA");
 			return ret;
 		}
 		break;
@@ -2462,12 +2462,12 @@ int32_t nf_ipsec_sa_add(
 		dpa_sa.sa_dir = DPA_IPSEC_OUTBOUND;
 		ret = add_dpa_ipsec_out_sa(nsid, nf_sa, &dpa_sa, &sa_id);
 		if (ret < 0) {
-			error(0, -ret, "Unable to add outbound DPA IPSec SA\n");
+			error(0, -ret, "Unable to add outbound DPA IPSec SA");
 			return ret;
 		}
 		break;
 	default:
-		error(0, EINVAL, "Invalid SA direction %d\n", in->dir);
+		error(0, EINVAL, "Invalid SA direction %d", in->dir);
 		return -EINVAL;
 	}
 
@@ -2513,12 +2513,12 @@ int32_t nf_ipsec_sa_del(
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
-		error(0, EINVAL, "Asynchronous call is not currently supported\n");
+		error(0, EINVAL, "Asynchronous call is not currently supported");
 		return -EINVAL;
 	}
 
 	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
-		error(0, EINVAL, "Call without response is not currently supported\n");
+		error(0, EINVAL, "Call without response is not currently supported");
 		return -EINVAL;
 	}
 
@@ -2532,7 +2532,7 @@ int32_t nf_ipsec_sa_del(
 	sa = find_sa_node(nf_ipsec_data, in->dir, in->sa_id.spi,
 			  in->sa_id.dest_ip, in->sa_id.protocol);
 	if (!sa) {
-		error(0, EINVAL, "SA was not previously added\n");
+		error(0, EINVAL, "SA was not previously added");
 		return -EINVAL;
 	}
 	return rm_sa_resources(nf_ipsec_data, sa);
@@ -2552,12 +2552,12 @@ int32_t nf_ipsec_sa_mod(
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
-		error(0, EINVAL, "Asynchronous call is not currently supported\n");
+		error(0, EINVAL, "Asynchronous call is not currently supported");
 		return -EINVAL;
 	}
 
 	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
-		error(0, EINVAL, "Call without response is not currently supported\n");
+		error(0, EINVAL, "Call without response is not currently supported");
 		return -EINVAL;
 	}
 
@@ -2572,22 +2572,22 @@ int32_t nf_ipsec_sa_mod(
 	sa = find_sa_node(nf_ipsec_data, in->dir, in->sa_id.spi,
 			  in->sa_id.dest_ip, in->sa_id.protocol);
 	if (!sa) {
-		error(0, EINVAL, "SA was not previously added\n");
+		error(0, EINVAL, "SA was not previously added");
 		return -EINVAL;
 	}
 
 	if (in->flags == NF_IPSEC_SA_MODIFY_LOCAL_GW_INFO) {
-		error(0, EINVAL, "Modify local gateway information is not currently supported\n");
+		error(0, EINVAL, "Modify local gateway information is not currently supported");
 		return -EINVAL;
 	}
 
 	if (in->flags == NF_IPSEC_SA_MODIFY_PEER_GW_INFO) {
-		error(0, EINVAL, "Modify peer gateway information is not currently supported\n");
+		error(0, EINVAL, "Modify peer gateway information is not currently supported");
 		return -EINVAL;
 	}
 
 	if (in->flags == NF_IPSEC_SA_MODIFY_REPLAY_INFO) {
-		error(0, EINVAL, "Modify replay window information is not currently supported\n");
+		error(0, EINVAL, "Modify replay window information is not currently supported");
 		return -EINVAL;
 	}
 
@@ -2595,7 +2595,7 @@ int32_t nf_ipsec_sa_mod(
 		const struct nf_ipsec_selector *sel = &in->selector.selector;
 
 		if (sa->n_sels == NF_IPSEC_MAX_SEL) {
-			error(0, EINVAL, "Reached maximum number of SA selectors\n");
+			error(0, EINVAL, "Reached maximum number of SA selectors");
 			return -EINVAL;
 		}
 		if (sel->version != NF_IPV4 && sel->version != NF_IPV6) {
@@ -2637,7 +2637,7 @@ int32_t nf_ipsec_sa_mod(
 
 		ret = delete_sa_selector(nf_ipsec_data, sa, sa_sel);
 		if (ret < 0)
-			error(0, -ret, "Failed to delete SA selector\n");
+			error(0, -ret, "Failed to delete SA selector");
 		return ret;
 	}
 
@@ -2668,12 +2668,12 @@ int32_t nf_ipsec_sa_get(
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
-		error(0, EINVAL, "Asynchronous call is not currently supported\n");
+		error(0, EINVAL, "Asynchronous call is not currently supported");
 		return -EINVAL;
 	}
 
 	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
-		error(0, EINVAL, "Call without response is not currently supported\n");
+		error(0, EINVAL, "Call without response is not currently supported");
 		return -EINVAL;
 	}
 
@@ -2688,7 +2688,7 @@ int32_t nf_ipsec_sa_get(
 			&nf_ipsec_data->sa_list[NF_IPSEC_DIR_INBOUND] :
 			&nf_ipsec_data->sa_list[NF_IPSEC_DIR_OUTBOUND];
 	if (list_empty(sa_list)) {
-		error(0, EINVAL, "SA database is empty\n");
+		error(0, EINVAL, "SA database is empty");
 		return -EINVAL;
 	}
 
@@ -2704,11 +2704,11 @@ int32_t nf_ipsec_sa_get(
 		sa = find_sa_node(nf_ipsec_data, in->dir, in->sa_id.spi,
 				in->sa_id.dest_ip, in->sa_id.protocol);
 		if (!sa) {
-			error(0, EINVAL, "SA was not previously added\n");
+			error(0, EINVAL, "SA was not previously added");
 			return -EINVAL;
 		}
 		if (sa->node.next == sa_list) {
-			error(0, EINVAL, "SA is last entry in the SA database\n");
+			error(0, EINVAL, "SA is last entry in the SA database");
 			return -EINVAL;
 		}
 		/* Get next SA */
@@ -2721,13 +2721,13 @@ int32_t nf_ipsec_sa_get(
 		sa = find_sa_node(nf_ipsec_data, in->dir, in->sa_id.spi,
 				in->sa_id.dest_ip, in->sa_id.protocol);
 		if (!sa) {
-			error(0, EINVAL, "SA was not previously added\n");
+			error(0, EINVAL, "SA was not previously added");
 			return -EINVAL;
 		}
 		fetch_sa_params(sa, &out->sa_params);
 		break;
 	default:
-		error(0, EINVAL, "Invalid SA fetch operation\n");
+		error(0, EINVAL, "Invalid SA fetch operation");
 		return -EINVAL;
 	}
 	return 0;
@@ -2745,12 +2745,12 @@ int32_t nf_ipsec_sa_flush(
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
-		error(0, EINVAL, "Asynchronous call is not currently supported\n");
+		error(0, EINVAL, "Asynchronous call is not currently supported");
 		return -EINVAL;
 	}
 
 	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
-		error(0, EINVAL, "Call without response is not currently supported\n");
+		error(0, EINVAL, "Call without response is not currently supported");
 		return -EINVAL;
 	}
 
@@ -2778,12 +2778,12 @@ int32_t nf_ipsec_spd_add(
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
-		error(0, EINVAL, "Asynchronous call is not currently supported\n");
+		error(0, EINVAL, "Asynchronous call is not currently supported");
 		return -EINVAL;
 	}
 
 	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
-		error(0, EINVAL, "Call without response is not currently supported\n");
+		error(0, EINVAL, "Call without response is not currently supported");
 		return -EINVAL;
 	}
 
@@ -2804,7 +2804,7 @@ int32_t nf_ipsec_spd_add(
 		if (ret < 0)
 			return ret;
 	} else {
-		error(0, EINVAL, "Policy with id %d was previously added\n",
+		error(0, EINVAL, "Policy with id %d was previously added",
 				policy_id);
 		return -EINVAL;
 	}
@@ -2825,12 +2825,12 @@ int32_t nf_ipsec_spd_del(
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
-		error(0, EINVAL, "Asynchronous call is not currently supported\n");
+		error(0, EINVAL, "Asynchronous call is not currently supported");
 		return -EINVAL;
 	}
 
 	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
-		error(0, EINVAL, "Call without response is not currently supported\n");
+		error(0, EINVAL, "Call without response is not currently supported");
 		return -EINVAL;
 	}
 
@@ -2846,7 +2846,7 @@ int32_t nf_ipsec_spd_del(
 
 	st = nf_ipsec_data->pol_state[dir][in->policy_id];
 	if (!(st & POL_STATE_INIT)) {
-		error(0, EINVAL, "Policy %d was not created\n", in->policy_id);
+		error(0, EINVAL, "Policy %d was not created", in->policy_id);
 		return -EINVAL;
 	}
 	return delete_pol(nf_ipsec_data->pol_mng[dir][in->policy_id]);
@@ -2859,7 +2859,7 @@ int32_t nf_ipsec_spd_mod(
 	struct nf_ipsec_spd_mod_outargs *out,
 	struct nf_api_resp_args *resp)
 {
-	error(0, EINVAL, "Function nf_ipsec_spd_mod is not currently supported\n");
+	error(0, EINVAL, "Function nf_ipsec_spd_mod is not currently supported");
 	return -EINVAL;
 }
 
@@ -2878,12 +2878,12 @@ int32_t nf_ipsec_spd_get(
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
-		error(0, EINVAL, "Asynchronous call is not currently supported\n");
+		error(0, EINVAL, "Asynchronous call is not currently supported");
 		return -EINVAL;
 	}
 
 	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
-		error(0, EINVAL, "Call without response is not currently supported\n");
+		error(0, EINVAL, "Call without response is not currently supported");
 		return -EINVAL;
 	}
 
@@ -2899,7 +2899,7 @@ int32_t nf_ipsec_spd_get(
 
 	plist = &nf_ipsec_data->pol_list[dir];
 	if (list_empty(plist)) {
-		error(0, EINVAL, "SPD database is empty\n");
+		error(0, EINVAL, "SPD database is empty");
 		return -EINVAL;
 	}
 
@@ -2913,13 +2913,13 @@ int32_t nf_ipsec_spd_get(
 
 		st = nf_ipsec_data->pol_state[dir][in->policy_id];
 		if (!(st & POL_STATE_INIT)) {
-			error(0, EINVAL, "Policy %d is not created\n",
+			error(0, EINVAL, "Policy %d is not created",
 					in->policy_id);
 			return -EINVAL;
 		}
 		pol = nf_ipsec_data->pol_mng[dir][in->policy_id];
 		if (pol->node.next == plist) {
-			error(0, EINVAL, "Policy is last entry in the SPD database\n");
+			error(0, EINVAL, "Policy is last entry in the SPD database");
 			return -EINVAL;
 		}
 		/* Get next policy */
@@ -2931,7 +2931,7 @@ int32_t nf_ipsec_spd_get(
 	case NF_IPSEC_SPD_GET_EXACT:
 		st = nf_ipsec_data->pol_state[dir][in->policy_id];
 		if (!(st & POL_STATE_INIT)) {
-			error(0, EINVAL, "Policy %d is not created\n",
+			error(0, EINVAL, "Policy %d is not created",
 					in->policy_id);
 			return -EINVAL;
 		}
@@ -2939,7 +2939,7 @@ int32_t nf_ipsec_spd_get(
 		fetch_pol_params(pol, &out->spd_params);
 		break;
 	default:
-		error(0, EINVAL, "Invalid SPD fetch operation\n");
+		error(0, EINVAL, "Invalid SPD fetch operation");
 		return -EINVAL;
 	}
 	return 0;
@@ -2957,12 +2957,12 @@ int32_t nf_ipsec_spd_flush(
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
-		error(0, EINVAL, "Asynchronous call is not currently supported\n");
+		error(0, EINVAL, "Asynchronous call is not currently supported");
 		return -EINVAL;
 	}
 
 	if (flags == NF_API_CTRL_FLAG_NO_RESP_EXPECTED) {
-		error(0, EINVAL, "Call without response is not currently supported\n");
+		error(0, EINVAL, "Call without response is not currently supported");
 		return -EINVAL;
 	}
 
@@ -3106,7 +3106,7 @@ int32_t nf_ipsec_encrypt_and_send(
 		}
 		break;
 	default:
-		error(0, EINVAL, "Call without proper input flag\n");
+		error(0, EINVAL, "Call without proper input flag");
 		return -EINVAL;
 	}
 
@@ -3142,7 +3142,7 @@ int32_t nf_ipsec_encrypt_and_send(
 	nf_ipsec_data->local_fq.fqid = fqid;
 	ret = qman_enqueue(&nf_ipsec_data->local_fq, &fd, 0);
 	if (ret) {
-		error(0, -ret, "Failed to enqueue frame\n");
+		error(0, -ret, "Failed to enqueue frame");
 		return ret;
 	}
 
