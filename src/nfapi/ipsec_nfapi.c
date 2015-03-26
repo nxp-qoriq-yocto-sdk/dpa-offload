@@ -1527,6 +1527,23 @@ static void fetch_sa_params(struct nf_ipsec_sa_data *sa,
 	}
 }
 
+static int fetch_sa_stats(struct nf_ipsec_sa_data *sa,
+			   struct nf_ipsec_sa_stats *stats)
+{
+	struct dpa_ipsec_sa_stats sa_stats;
+	int ret;
+
+	ret = dpa_ipsec_sa_get_stats(sa->sa_id, &sa_stats);
+	if (ret) {
+		return ret;
+	}
+	stats->received_pkts = sa_stats.input_packets;
+	stats->processed_pkts = sa_stats.packets_count;
+	stats->processed_bytes = sa_stats.bytes_count;
+
+	return 0;
+}
+
 static void set_pol_position_begin(struct list_head *pol_list,
 				   struct nf_ipsec_pol_data *pol)
 {
@@ -2664,6 +2681,7 @@ int32_t nf_ipsec_sa_get(
 	struct nf_ipsec_data *nf_ipsec_data = NULL;
 	struct list_head *sa_list = NULL;
 	struct nf_ipsec_sa_data *sa = NULL;
+	int ret;
 
 	nf_ipsec_data = gbl_nf_ipsec_data;
 
@@ -2695,11 +2713,8 @@ int32_t nf_ipsec_sa_get(
 	switch (in->operation) {
 	case NF_IPSEC_SA_GET_FIRST:
 		sa = list_entry(sa_list->next, struct nf_ipsec_sa_data, node);
-		fetch_sa_params(sa, &out->sa_params);
 		break;
 	case NF_IPSEC_SA_GET_NEXT: {
-		struct nf_ipsec_sa_data *next = NULL;
-
 		/* Find SA node */
 		sa = find_sa_node(nf_ipsec_data, in->dir, in->sa_id.spi,
 				in->sa_id.dest_ip, in->sa_id.protocol);
@@ -2712,8 +2727,7 @@ int32_t nf_ipsec_sa_get(
 			return -EINVAL;
 		}
 		/* Get next SA */
-		next = list_entry(sa->node.next, struct nf_ipsec_sa_data, node);
-		fetch_sa_params(next, &out->sa_params);
+		sa = list_entry(sa->node.next, struct nf_ipsec_sa_data, node);
 		break;
 	}
 	case NF_IPSEC_SA_GET_EXACT:
@@ -2724,11 +2738,23 @@ int32_t nf_ipsec_sa_get(
 			error(0, EINVAL, "SA was not previously added");
 			return -EINVAL;
 		}
-		fetch_sa_params(sa, &out->sa_params);
 		break;
 	default:
 		error(0, EINVAL, "Invalid SA fetch operation");
 		return -EINVAL;
+	}
+
+
+	if (in->flags & NF_IPSEC_SA_GET_PARAMS) {
+		fetch_sa_params(sa, &out->sa_params);
+	}
+	if (in->flags & NF_IPSEC_SA_GET_STATS) {
+		ret = fetch_sa_stats(sa, &out->stats);
+		if (ret) {
+			error(0, -ret, "Failed to acqure SA statistics for sa id %d",
+					sa->sa_id);
+			return ret;
+		}
 	}
 	return 0;
 }
