@@ -44,15 +44,11 @@ fman_version()
 {
 	case $1 in
 		[pP]1023*) echo p1023;;
-		[pP]2041*) echo p4080;;
-		[pP]3041*) echo p4080;;
-		[pP]4080*) echo p4080;;
-		[pP]5020*) echo p5020;;
-		[pP]5040*) echo p5020;;
-		[bB]4860*) echo b4860;;
-		[tT]4240*) echo b4860;;
-		[tT]1040*) echo b4860;;
-		[tT]2080*) echo b4860;;
+		[bB]4860*) echo FMAN_V3H;;
+		[tT]4240*) echo FMAN_V3H;;
+		[tT]1040*) echo FMAN_V3L;;
+		[tT]2080*) echo FMAN_V3H;;
+		*) echo p4080;;
 	esac
 }
 
