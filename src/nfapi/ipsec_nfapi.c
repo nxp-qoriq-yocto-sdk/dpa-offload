@@ -207,6 +207,12 @@ static int check_policy_params(const struct nf_ipsec_spd_add_inargs *in)
 		return -EINVAL;
 	}
 
+	if (in->spd_params.policy_id > NF_IPSEC_MAX_POLS) {
+		error(0, EINVAL, "Policy Id %u is out of range (max. supported is %u)",
+			in->spd_params.policy_id, NF_IPSEC_MAX_POLS - 1);
+		return -EINVAL;
+	}
+
 	if ((in->dir == NF_IPSEC_INBOUND) &&
 	    (spd_params->action != NF_IPSEC_POLICY_ACTION_IPSEC)) {
 		error(0, EINVAL, "For INBOUND direction only policy action IPSEC is supported");
@@ -1125,6 +1131,12 @@ static int process_in_sa_selector(struct nf_ipsec_data *nf_ipsec_data,
 	int policy_id = sel->policy_id;
 	int idx, ret = 0, dir = NF_IPSEC_DIR_INBOUND;
 
+	if (policy_id >= NF_IPSEC_MAX_POLS) {
+		error(0, EINVAL, "Inbound SA selector policy Id %d is out of range (max. supported is %u)",
+			policy_id, NF_IPSEC_MAX_POLS - 1);
+		return -EINVAL;
+	}
+
 	switch (nf_ipsec_data->pol_state[dir][policy_id]) {
 	case POL_STATE_INVALID:
 		/* Create policy node */
@@ -1212,6 +1224,12 @@ static int process_out_sa_selector(struct nf_ipsec_data *nf_ipsec_data,
 	struct nf_ipsec_pol_data *pol = NULL;
 	int policy_id = sel->policy_id;
 	int idx, ret = 0, dir = NF_IPSEC_DIR_OUTBOUND;
+
+	if (policy_id >= NF_IPSEC_MAX_POLS) {
+		error(0, EINVAL, "Outbound SA selector policy Id %d is out of range (max. supported is %u)",
+			policy_id, NF_IPSEC_MAX_POLS - 1);
+		return -EINVAL;
+	}
 
 	switch (nf_ipsec_data->pol_state[dir][policy_id]) {
 	case POL_STATE_INVALID:
