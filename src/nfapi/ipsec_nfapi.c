@@ -650,6 +650,7 @@ static int fill_table_key(int td, struct nf_ipsec_selector *sel,
 				}
 				memcpy(key + off, &sel->src_ip4.subnet.addr,
 						IP_ADDR_LEN_T_IPv4);
+				memset(mask + off, 0, IP_ADDR_LEN_T_IPv4);
 				set_ip_addr_mask(mask + off,
 						sel->src_ip4.subnet.prefix_len);
 			} else if (sel->version == NF_IPV6) {
@@ -659,6 +660,7 @@ static int fill_table_key(int td, struct nf_ipsec_selector *sel,
 				}
 				memcpy(key + off, &sel->src_ip6.subnet.addr,
 						NF_IPV6_ADDRU32_LEN);
+				memset(mask + off, 0, NF_IPV6_ADDRU32_LEN);
 				set_ip_addr_mask(mask + off,
 						sel->src_ip6.subnet.prefix_len);
 			} else {
@@ -677,6 +679,7 @@ static int fill_table_key(int td, struct nf_ipsec_selector *sel,
 				}
 				memcpy(key + off, &sel->dest_ip4.subnet.addr,
 						IP_ADDR_LEN_T_IPv4);
+				memset(mask + off, 0, IP_ADDR_LEN_T_IPv4);
 				set_ip_addr_mask(mask + off,
 						sel->dest_ip4.subnet.prefix_len);
 			} else if (sel->version == NF_IPV6) {
@@ -686,6 +689,7 @@ static int fill_table_key(int td, struct nf_ipsec_selector *sel,
 				}
 				memcpy(key + off, &sel->dest_ip6.subnet.addr,
 						NF_IPV6_ADDRU32_LEN);
+				memset(mask + off, 0, NF_IPV6_ADDRU32_LEN);
 				set_ip_addr_mask(mask + off,
 						sel->dest_ip6.subnet.prefix_len);
 			} else {
