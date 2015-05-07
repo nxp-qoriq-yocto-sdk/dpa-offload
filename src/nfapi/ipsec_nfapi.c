@@ -1995,6 +1995,7 @@ static int insert_out_pol_ipsec(struct nf_ipsec_pol_data *pol, int idx)
 
 	/* Frames will be sent to default queue */
 	memset(&action, 0, sizeof(action));
+	action.enable_statistics = DPA_IPSEC_SA_EN_EXT_STATS_DEFAULT;
 	action.type = DPA_CLS_TBL_ACTION_ENQ;
 	action.enq_params.override_fqid = false;
 	action.enq_params.hmd = DPA_OFFLD_DESC_NONE;
