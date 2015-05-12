@@ -3090,12 +3090,11 @@ int32_t nf_ipsec_global_stats_get(
 {
 	struct nf_ipsec_data *nf_ipsec_data = NULL;
 	struct nf_ipsec_sa_data *sa = NULL;
-	struct nf_ipsec_pol_data *pol = NULL;
 	struct dpa_ipsec_sa_stats sa_stats;
-	struct dpa_cls_tbl_entry_stats tbl_entry_stats;
+	struct dpa_ipsec_stats stats;
 
-	uint8_t pol_state;
-	int i, j, ret, td;
+	int i, ret;
+
 
 	if (flags == NF_API_CTRL_FLAG_ASYNC) {
 		error(0, EINVAL, "Asynchronous call is not supported");
@@ -3127,8 +3126,10 @@ int32_t nf_ipsec_global_stats_get(
 			error(0, -ret, "Failed to get statistics for OUTB SA");
 			return ret;
 		}
-		out->stats.outb_received_pkts += sa_stats.input_packets;
+
+		out->stats.outb_processed_pkts += sa_stats.input_packets;
 		out->stats.outb_sec_applied_pkts += sa_stats.packets_count;
+		out->stats.outb_sec_applied_bytes += sa_stats.bytes_count;
 	}
 
 	/* Get statistics from INBOUND SA. */
@@ -3142,41 +3143,23 @@ int32_t nf_ipsec_global_stats_get(
 			error(0, -ret, "Failed to get statistics for INB SA");
 			return ret;
 		}
-		out->stats.inb_received_pkts += sa_stats.input_packets;
+
+		out->stats.inb_processed_pkts += sa_stats.input_packets;
 		out->stats.inb_sec_applied_pkts += sa_stats.packets_count;
+		out->stats.inb_sec_applied_bytes += sa_stats.bytes_count;
 	}
 
-	/* Get statistics from OUTBOUND policies. */
-	for (i = 0; i < NF_IPSEC_MAX_POLS; i++) {
-		pol = nf_ipsec_data->pol_mng[NF_IPSEC_DIR_OUTBOUND][i];
-		pol_state = nf_ipsec_data->pol_state[NF_IPSEC_DIR_OUTBOUND][i];
-		if (!pol || (pol_state & POL_STATE_INVALID))
-			continue;
+	/* Get IPSEC Global statistics. */
+	memset(&stats, 0, sizeof(stats));
+	ret = dpa_ipsec_get_stats(nsid, &stats);
 
-		for (j = 0; j < pol->n_sels; j++) {
-			if (pol->entry_ids[j] == DPA_OFFLD_DESC_NONE)
-				continue;
-
-			td = get_out_pol_table(nf_ipsec_data, &pol->sels[j]);
-			if (td < 0)
-				continue;
-
-			ret = dpa_classif_table_get_entry_stats_by_ref(
-					td,
-					pol->entry_ids[j],
-					&tbl_entry_stats);
-			if (ret) {
-				error(0, -ret, "Failed to get statistics for policy with id %" PRIu32,
-						pol->policy_id);
-				return ret;
-			}
-			out->stats.outb_processed_pkts += tbl_entry_stats.pkts;
-			if (pol->spd_params.action ==
-					NF_IPSEC_POLICY_ACTION_IPSEC)
-				out->stats.outb_pkts_to_apply_sec +=
-					tbl_entry_stats.pkts;
-		}
+	if (ret) {
+		error(0, -ret, "Failed to get IPSec global statistics");
+		return ret;
 	}
+
+	out->stats.outb_received_pkts = out->stats.outb_processed_pkts + stats.outbound_miss_pkts;
+	out->stats.inb_received_pkts = out->stats.inb_processed_pkts + stats.inbound_miss_pkts;
 
 	return 0;
 }
