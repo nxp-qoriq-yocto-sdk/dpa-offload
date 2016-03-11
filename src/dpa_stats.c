@@ -781,7 +781,7 @@ static int process_async_req(struct dpa_stats_event_params *ev)
 			error(0, -err, "Failed to recycle stats request\n");
 			return err;
 		}
-		ev->request_done(ev->dpa_stats_id,
+		async_req->request_done(ev->dpa_stats_id,
 				 ev->storage_area_offset,
 				 ev->cnts_written,
 				 ev->bytes_written);
@@ -1349,7 +1349,7 @@ int dpa_stats_get_counters(struct dpa_stats_cnt_request_params params,
 
 	memcpy(&ioc_prm.req_params, &params, sizeof(params));
 	ioc_prm.cnts_len = *cnts_len;
-	ioc_prm.request_done = request_done;
+	ioc_prm.async_req = false;
 	ioc_prm.req_params.cnts_ids = req->cnt_off;
 
 	/* If counters request is asynchronous */
@@ -1362,6 +1362,7 @@ int dpa_stats_get_counters(struct dpa_stats_cnt_request_params params,
 		if (ret)
 			return ret;
 		list_add_tail(&req->node, &dpa_stats->async_ks_reqs);
+		ioc_prm.async_req = true;
 		ret = pthread_mutex_unlock(&async_ks_reqs_lock);
 		if (ret)
 			return ret;
@@ -1376,6 +1377,7 @@ int dpa_stats_get_counters(struct dpa_stats_cnt_request_params params,
 
 		if (!request_done) {
 			/* Synchronous request */
+			ioc_prm.async_req = false;
 			ret = block_sched_cnts(dpa_stats, params.cnts_ids,
 				params.cnts_ids_len);
 			if (ret < 0)
@@ -1402,6 +1404,7 @@ int dpa_stats_get_counters(struct dpa_stats_cnt_request_params params,
 			 * The request is only for user-space counters, so add
 			 * it to the queue which treats only user-space requests
 			 */
+			ioc_prm.async_req = true;
 			ret = fifo_add(&dpa_stats->async_us_req_queue, req);
 			if (ret < 0)
 				return ret;
