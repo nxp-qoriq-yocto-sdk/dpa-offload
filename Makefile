@@ -50,9 +50,15 @@ ifeq ($(ARCH),powerpc64)
 	CFLAGS += -mcpu=e500mc64 -m64
 	CDEFINES += -D_FILE_OFFSET_BITS=64
 else
-	OUTDIR = lib_powerpc
+ifeq ($(ARCH),arm64)
+	OUTDIR = lib_arm64
 	LIBDESTSUBDIR = /usr/lib
+	CFLAGS += -mcpu=cortex-a53
+else
+	OUTDIR = lib_powerpc
+        LIBDESTSUBDIR = /usr/lib
 	CFLAGS += -mcpu=e500mc
+endif
 endif
 
 CFLAGS += $(CDEFINES)
