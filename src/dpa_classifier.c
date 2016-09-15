@@ -122,13 +122,6 @@ int dpa_classif_table_create(const struct dpa_cls_tbl_params *params, int *td)
 	/* Translate Cc node handle and FM PCD handle to FMD type of handles: */
 	table_params.table_params.cc_node = dev_get_id(params->cc_node);
 
-	if (params->distribution && params->classification) {
-		table_params.table_params.distribution	=
-					dev_get_id(params->distribution);
-		table_params.table_params.classification =
-					dev_get_id(params->classification);
-	}
-
 	if (ioctl(dpa_cls_devfd, DPA_CLS_IOC_TBL_CREATE, &table_params) < 0)
 		return -errno;
 
@@ -214,6 +207,13 @@ int dpa_classif_table_insert_entry(int				td,
 
 	memcpy(&params.key, key, sizeof(struct dpa_offload_lookup_key));
 	memcpy(&params.action, action, sizeof(struct dpa_cls_tbl_action));
+
+	if ((action->type == DPA_CLS_TBL_ACTION_ENQ) &&
+					(action->enq_params.distribution)) {
+		params.action.enq_params.distribution =
+				dev_get_id(action->enq_params.distribution);
+	}
+
 	if (ioctl(dpa_cls_devfd,
 			DPA_CLS_IOC_TBL_INSERT_ENTRY, &params) < 0)
 		return -errno;
@@ -953,7 +953,7 @@ int dpa_classif_mcast_create_group(
 		const struct dpa_cls_mcast_group_resources *res)
 {
 	struct ioc_dpa_cls_mcast_group_params params;
-	void *distribution, *classification;
+	void *distribution;
 
 	CHECK_CLASSIFIER_DEV_FD();
 
@@ -967,13 +967,10 @@ int dpa_classif_mcast_create_group(
 		params.mcast_grp_params.fm_pcd = dev_get_fd(params.
 						       mcast_grp_params.fm_pcd);
 
-	distribution = params.mcast_grp_params.distribution;
-	classification = params.mcast_grp_params.classification;
-	if (distribution && classification) {
-		params.mcast_grp_params.distribution = dev_get_id(distribution);
-		params.mcast_grp_params.classification =
-						     dev_get_id(classification);
-	}
+	distribution = params.mcast_grp_params.first_member_params.distribution;
+	if (distribution)
+		params.mcast_grp_params.first_member_params.distribution =
+						dev_get_id(distribution);
 
 	if (ioctl(dpa_cls_devfd, DPA_CLS_IOC_MCAST_CREATE_GROUP, &params) < 0)
 		return -errno;
@@ -989,6 +986,7 @@ int dpa_classif_mcast_add_member(int grpd,
 		int *membrd)
 {
 	struct ioc_dpa_cls_mcast_member_params params;
+	void *distribution;
 
 	CHECK_CLASSIFIER_DEV_FD();
 
@@ -997,6 +995,10 @@ int dpa_classif_mcast_add_member(int grpd,
 		sizeof(struct dpa_cls_tbl_enq_action_desc));
 	params.grpd = grpd;
 	params.md = DPA_OFFLD_DESC_NONE;
+
+	distribution = member_params->distribution;
+	if (distribution)
+		params.member_params.distribution = dev_get_id(distribution);
 
 	if (ioctl(dpa_cls_devfd, DPA_CLS_IOC_MCAST_ADD_MEMBER, &params) < 0)
 		return -errno;
